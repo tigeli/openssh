@@ -1647,6 +1647,10 @@ channel_handle_wfd(Channel *c, fd_set *readset, fd_set *writeset)
 	u_int dlen, olen = 0;
 	int len;
 
+	if(c->wfd != -1 && buffer_len(&c->output) > 0 && c->ostate == CHAN_OUTPUT_WAIT_DRAIN) {
+		debug("channel %d: forcing write", c->self);
+		FD_SET(c->wfd, writeset);
+	}
 	/* Send buffered output data to the socket. */
 	if (c->wfd != -1 &&
 	    FD_ISSET(c->wfd, writeset) &&
