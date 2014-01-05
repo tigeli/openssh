@@ -1455,6 +1455,7 @@ safely_chroot(const char *path, uid_t uid)
 	if (chdir(path) == -1)
 		fatal("Unable to chdir to chroot path \"%s\": "
 		    "%s", path, strerror(errno));
+	open_log ();
 	if (chroot(path) == -1)
 		fatal("chroot(\"%s\"): %s", path, strerror(errno));
 	if (chdir("/") == -1)
@@ -1656,7 +1657,8 @@ child_close_fds(void)
 	 * descriptors open.
 	 */
 	for (i = 3; i < 64; i++)
-		close(i);
+		if (i != log_fd_keep)
+			close(i);
 }
 
 /*
