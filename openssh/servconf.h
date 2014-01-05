@@ -131,6 +131,7 @@ typedef struct {
 	int	max_authtries;
 	int	max_sessions;
 	char   *banner;			/* SSH-2 banner message */
+	int	show_patchlevel;	/* Show vendor patch level to clients */
 	int	use_dns;
 	int	client_alive_interval;	/*
 					 * poke the client this often to

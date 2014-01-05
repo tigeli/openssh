@@ -882,6 +882,14 @@ This option applies to protocol version 1 only.
 .It Cm ServerKeyBits
 Defines the number of bits in the ephemeral protocol version 1 server key.
 The minimum value is 512, and the default is 1024.
+.It Cm ShowPatchLevel 
+Specifies whether 
+.Nm sshd 
+will display the patch level of the binary in the identification string. 
+The patch level is set at compile-time. 
+The default is 
+.Dq no . 
+This option applies to protocol version 1 only. 
 .It Cm StrictModes
 Specifies whether
 .Xr sshd 8

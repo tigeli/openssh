@@ -118,6 +118,7 @@ initialize_server_options(ServerOptions *options)
 	options->max_authtries = -1;
 	options->max_sessions = -1;
 	options->banner = NULL;
+	options->show_patchlevel = -1;
 	options->use_dns = -1;
 	options->client_alive_interval = -1;
 	options->client_alive_count_max = -1;
@@ -267,6 +268,9 @@ fill_default_server_options(ServerOptions *options)
 	if (options->zero_knowledge_password_authentication == -1)
 		options->zero_knowledge_password_authentication = 0;
 
+	if (options->show_patchlevel == -1)
+ 		options->show_patchlevel = 0;
+ 
 	/* Turn privilege separation on by default */
 	if (use_privsep == -1)
 		use_privsep = 1;
@@ -304,7 +308,7 @@ typedef enum {
 	sIgnoreUserKnownHosts, sCiphers, sMacs, sProtocol, sPidFile,
 	sGatewayPorts, sPubkeyAuthentication, sXAuthLocation, sSubsystem,
 	sMaxStartups, sMaxAuthTries, sMaxSessions,
-	sBanner, sUseDNS, sHostbasedAuthentication,
+	sBanner, sShowPatchLevel, sUseDNS, sHostbasedAuthentication,
 	sHostbasedUsesNameFromPacketOnly, sClientAliveInterval,
 	sClientAliveCountMax, sAuthorizedKeysFile, sAuthorizedKeysFile2,
 	sGssAuthentication, sGssCleanupCreds, sAcceptEnv, sPermitTunnel,
@@ -416,6 +420,7 @@ static struct {
 	{ "maxauthtries", sMaxAuthTries, SSHCFG_ALL },
 	{ "maxsessions", sMaxSessions, SSHCFG_ALL },
 	{ "banner", sBanner, SSHCFG_ALL },
+	{ "showpatchlevel", sShowPatchLevel, SSHCFG_GLOBAL },
 	{ "usedns", sUseDNS, SSHCFG_GLOBAL },
 	{ "verifyreversemapping", sDeprecated, SSHCFG_GLOBAL },
 	{ "reversemappingcheck", sDeprecated, SSHCFG_GLOBAL },
@@ -1068,6 +1073,10 @@ process_server_config_line(ServerOptions *options, char *line,
 		intptr = &use_privsep;
 		goto parse_flag;
 
+	case sShowPatchLevel:
+		intptr = &options->show_patchlevel;
+		goto parse_flag;
+
 	case sAllowUsers:
 		while ((arg = strdelim(&cp)) && *arg != '\0') {
 			if (options->num_allow_users >= MAX_ALLOW_USERS)
@@ -1677,6 +1686,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sUseLogin, o->use_login);
 	dump_cfg_fmtint(sCompression, o->compression);
 	dump_cfg_fmtint(sGatewayPorts, o->gateway_ports);
+	dump_cfg_fmtint(sShowPatchLevel, o->show_patchlevel);
 	dump_cfg_fmtint(sUseDNS, o->use_dns);
 	dump_cfg_fmtint(sAllowTcpForwarding, o->allow_tcp_forwarding);
 	dump_cfg_fmtint(sUsePrivilegeSeparation, use_privsep);

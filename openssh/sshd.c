@@ -418,7 +418,7 @@ sshd_exchange_identification(int sock_in, int sock_out)
 		minor = PROTOCOL_MINOR_1;
 	}
 	snprintf(buf, sizeof buf, "SSH-%d.%d-%.100s%s", major, minor,
-	    SSH_VERSION, newline);
+	   (options.show_patchlevel == 1) ? SSH_VENDOR_PATCHLEVEL : SSH_VERSION, newline);
 	server_version_string = xstrdup(buf);
 
 	/* Send our protocol version identification. */
@@ -1539,7 +1539,8 @@ main(int ac, char **av)
 		exit(1);
 	}
 
-	debug("sshd version %.100s", SSH_RELEASE);
+	debug("sshd version %.100s",
+	      (options.show_patchlevel == 1) ? SSH_VENDOR_PATCHLEVEL : SSH_RELEASE);
 
 	/* Store privilege separation user for later use if required. */
 	if ((privsep_pw = getpwnam(SSH_PRIVSEP_USER)) == NULL) {
