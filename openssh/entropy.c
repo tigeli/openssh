@@ -159,6 +159,9 @@ init_rng(void)
 		fatal("OpenSSL version mismatch. Built against %lx, you "
 		    "have %lx", OPENSSL_VERSION_NUMBER, SSLeay());
 
+	/* clean the PRNG status when exiting the program */
+	atexit(RAND_cleanup);
+
 #ifndef OPENSSL_PRNG_ONLY
 	original_uid = getuid();
 	original_euid = geteuid();
