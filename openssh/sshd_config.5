@@ -536,6 +536,10 @@ Specifies whether to automatically destroy the user's ticket cache
 file on logout.
 The default is
 .Dq yes .
+.It Cm KerberosUseKuserok
+Specifies whether to look at .k5login file for user's aliases.
+The default is
+.Dq yes .
 .It Cm KeyRegenerationInterval
 In protocol version 1, the ephemeral server key is automatically regenerated
 after this many seconds (if it has been used).
@@ -666,6 +670,7 @@ Available keywords are
 .Cm HostbasedUsesNameFromPacketOnly ,
 .Cm KbdInteractiveAuthentication ,
 .Cm KerberosAuthentication ,
+.Cm KerberosUseKuserok ,
 .Cm MaxAuthTries ,
 .Cm MaxSessions ,
 .Cm PubkeyAuthentication ,
