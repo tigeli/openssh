@@ -1346,6 +1346,18 @@ AC_ARG_WITH(audit,
 	esac ]
 )
 
+# Check whether user wants AuthorizedKeysCommand support
+AKC_MSG="no"
+AC_ARG_WITH(authorized-keys-command,
+	[  --with-authorized-keys-command      Enable AuthorizedKeysCommand support],
+	[
+		if test "x$withval" != "xno" ; then
+			AC_DEFINE([WITH_AUTHORIZED_KEYS_COMMAND], 1, [Enable AuthorizedKeysCommand support])
+			AKC_MSG="yes"
+		fi
+	]
+)
+
 dnl    Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS( \
 	arc4random \
@@ -4194,6 +4206,7 @@ echo "                   SELinux support: $SELINUX_MSG"
 echo "                 Smartcard support: $SCARD_MSG"
 echo "                     S/KEY support: $SKEY_MSG"
 echo "              TCP Wrappers support: $TCPW_MSG"
+echo "     AuthorizedKeysCommand support: $AKC_MSG"
 echo "              MD5 password support: $MD5_MSG"
 echo "                   libedit support: $LIBEDIT_MSG"
 echo "  Solaris process contract support: $SPC_MSG"

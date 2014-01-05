@@ -654,6 +654,8 @@ Available keywords are
 .Cm AllowAgentForwarding ,
 .Cm AllowTcpForwarding ,
 .Cm AuthorizedKeysFile ,
+.Cm AuthorizedKeysCommand ,
+.Cm AuthorizedKeysCommandRunAs ,
 .Cm AuthorizedPrincipalsFile ,
 .Cm Banner ,
 .Cm ChrootDirectory ,
@@ -666,6 +668,7 @@ Available keywords are
 .Cm KerberosAuthentication ,
 .Cm MaxAuthTries ,
 .Cm MaxSessions ,
+.Cm PubkeyAuthentication ,
 .Cm PasswordAuthentication ,
 .Cm PermitEmptyPasswords ,
 .Cm PermitOpen ,
@@ -868,6 +871,20 @@ Specifies a list of revoked public keys.
 Keys listed in this file will be refused for public key authentication.
 Note that if this file is not readable, then public key authentication will
 be refused for all users.
+.It Cm AuthorizedKeysCommand
+Specifies a program to be used for lookup of the user's
+public keys.  The program will be invoked with its first
+argument the name of the user being authorized, and should produce 
+on standard output AuthorizedKeys lines (see AUTHORIZED_KEYS 
+in sshd(8)).  By default (or when set to the empty string) there is no
+AuthorizedKeysCommand run.  If the AuthorizedKeysCommand does not successfully
+authorize the user, authorization falls through to the
+AuthorizedKeysFile.  Note that this option has an effect
+only with PubkeyAuthentication turned on.
+.It Cm AuthorizedKeysCommandRunAs
+Specifies the user under whose account the AuthorizedKeysCommand is run. Empty
+string (the default value) means the user being authorized is used.
+.Dq 
 .It Cm RhostsRSAAuthentication
 Specifies whether rhosts or /etc/hosts.equiv authentication together
 with successful RSA host authentication is allowed.
