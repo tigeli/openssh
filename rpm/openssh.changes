@@ -1,0 +1,50 @@
+* Fri Mar 01 2013 Pekka Lundstrom <pekka.lundstrom@jollamobile.com> - 5.6p1
+- sshd config can be different on each installation. Command line parameters
+  are taken from environment file /etc/ssh/ssh-env.conf
+  Fixes MER#681 
+
+* Tue Nov 20 2012 Maciej Blomberg <maciej.blomberg@jollamobile.com> - 5.6p1
+- Sync after keys generation, fixes rare problems mostly reported for vm guests.
+
+* Sat Sep 22 2012 David Greaves <david@dgreaves.com> - 5.6p1
+- Remove GSSIAPI from config files if kerberos disabled in spec file
+
+* Tue Sep 13 2011 Marko Saukko <marko.saukko@cybercom.com> - 5.6p1
+- Added StandardOutput=Socket to sshd@.service file to fix functionality with systemd 35.
+
+* Tue Sep 06 2011 Carsten Munk <carsten@maemo.org> - 5.6p1
+- Drop krb5 and ldap dependancy
+
+* Tue May 03 2011 Chris Ferron <chris.e.ferron@linux.intel.com> - 5.6p1
+- FEA#16109 - [FEA] Implement SystemD as MeeGo init provide
+- Updated the openssh package to be usable by systemd as needed 
+  to implement systemd as the init provider of MeeGo. For this 
+  systemd service were added This will allow systemd to start 
+  stop and track the service at the user discression in.  
+- sshd.service used to start a standalone ssh server. 
+- sshd@.service and sshd.socket used to start a more inetd per-connection sshd instance. 
+- sshd-keys.service used to generate sshd keys.  
+
+* Fri Apr 15 2011 Passion Zhao <passion.zhao@intel.com> - 5.6p1-3
+- Address CVE-2010-4478 (BMC#11138): Session Key Retrieval in J-PAKE Implementations of OpenSSL and OpenSSH
+
+* Mon Jan 24 2011 Tuukka Mäkinen <tuukka.makinen@cybercom.com> - 5.6p1-2
+- Give "y" answers to potential "overwrite (y/n)?" questions in keygeneration.
+  This eliminates one reason for hanging in boot (BMC#9558, BMC#7510).
+
+* Tue Jan 11 2011 Passion Zhao <passion.zhao@intel.com> - 5.6p1-2
+- Clean up some obsolete patches.
+
+* Mon Jan 10 2011 Passion Zhao <passion.zhao@intel.com> - 5.6p1-1
+- Upgrade to 5.6p1 (#FEA 10919)
+
+* Sat Apr 03 2010 Anas Nashif <anas.nashif@intel.com> - 5.3p1
+- Spec cleanup: Remove selinux patches and conditionals
+- Remove dependency on man
+
+* Thu Oct 15 2009 Passion Zhao <passion.zhao@intel.com> - 5.3p1-1
+- Upgrade to 5.3p1, remove upstreamed openssh-3.8.1p1-krb5-config.patch
+
+* Wed Oct 14 2009 Passion Zhao <passion.zhao@intel.com> - 5.2p1-4
+- Remove the homechroot patch which introduce the CVE-2009-2904: 
+  possible privilege escalation when using ChrootDirectory setting
