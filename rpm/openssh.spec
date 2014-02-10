@@ -172,6 +172,10 @@ Group: System/Daemons
 Requires: openssh = %{version}-%{release}
 Requires(pre): /usr/sbin/useradd
 Requires: pam >= 1.0.1-3
+Requires: systemd
+Requires(post): systemd
+Requires(postun): systemd
+Requires(preun): systemd
 
 %if %{ldap}
 %package ldap
@@ -415,22 +419,17 @@ fi
 %endif
 
 %post server
-systemctl daemon-reload
+systemctl daemon-reload || :
 
 %postun server
-systemctl daemon-reload
+systemctl daemon-reload || :
 
-%post
-systemctl daemon-reload
- 
-%preun
-# any service
-systemctl stop sshd.service
+%preun server
+if [ $1 -eq 0 ] ; then
+# only stop when erasing, not on upgrade
+systemctl stop sshd.service || :
+fi
 
-%postun
-systemctl daemon-reload
-
- 
 %files
 %defattr(-,root,root)
 %doc CREDITS ChangeLog INSTALL LICENCE OVERVIEW README* TODO WARNING*
