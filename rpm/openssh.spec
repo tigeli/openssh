@@ -409,7 +409,7 @@ if [ $? -eq 1 ] ; then
 	echo HostKey /etc/ssh/ssh_host_dsa_key >> /etc/ssh/sshd_config
 fi
 
-%pretrans
+%pre
 # We have nasty problem with old openssh package
 # Old package tries to stop sshd.service during uninstallation
 # and it fails if sshd.service file is not installed. Because that file
@@ -428,7 +428,7 @@ if [ ! -f $SSHD_SERVICE -a -d /usr/libexec/openssh ]; then
 fi
 
 %posttrans
-# See comment in pretrans
+# See comment in pre
 SSHD_SERVICE="/lib/systemd/system/sshd.service"
 if grep -q "PLU temp fake" $SSHD_SERVICE; then
     systemctl stop sshd.service &> /dev/null || :
