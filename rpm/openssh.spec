@@ -414,16 +414,16 @@ fi
 # Old package tries to stop sshd.service during uninstallation
 # and it fails if sshd.service file is not installed. Because that file
 # is installed only when developer mode is enabled (server installed), 
-# we have good changes to fail during upgrade. To overcome that problem, 
-# we have to install fake service file and unistall when upgrade is over
+# we will fail during upgrade. To overcome that problem, we create 
+# fake service file and remove it when upgrade is over
 
 SSHD_SERVICE="/lib/systemd/system/sshd.service"
-if [ ! -f $SSHD_SERVICE ]; then
-    echo "[Unit]" > $SSHD_SERVICE
-    echo "Description=PLU temp fake" >> $SSHD_SERVICE
-    echo "[Service]"  >> $SSHD_SERVICE
-    echo "Type=oneshot" >> $SSHD_SERVICE
-    echo "ExecStart=/bin/true" >> $SSHD_SERVICE
+if [ ! -f $SSHD_SERVICE -a -d /usr/libexec/openssh ]; then
+    echo "[Unit]" > $SSHD_SERVICE || :
+    echo "Description=PLU temp fake" >> $SSHD_SERVICE || :
+    echo "[Service]"  >> $SSHD_SERVICE || :
+    echo "Type=oneshot" >> $SSHD_SERVICE || :
+    echo "ExecStart=/bin/true" >> $SSHD_SERVICE || :
     systemctl daemon-reload &> /dev/null || :
 fi
 
