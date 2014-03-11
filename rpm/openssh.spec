@@ -409,6 +409,33 @@ if [ $? -eq 1 ] ; then
 	echo HostKey /etc/ssh/ssh_host_dsa_key >> /etc/ssh/sshd_config
 fi
 
+%pretrans
+# We have nasty problem with old openssh package
+# Old package tries to stop sshd.service during uninstallation
+# and it fails if sshd.service file is not installed. Because that file
+# is installed only when developer mode is enabled (server installed), 
+# we will fail during upgrade. To overcome that problem, we create 
+# fake service file and remove it when upgrade is over
+
+SSHD_SERVICE="/lib/systemd/system/sshd.service"
+if [ ! -f $SSHD_SERVICE -a -d /usr/libexec/openssh ]; then
+    echo "[Unit]" > $SSHD_SERVICE || :
+    echo "Description=PLU temp fake" >> $SSHD_SERVICE || :
+    echo "[Service]"  >> $SSHD_SERVICE || :
+    echo "Type=oneshot" >> $SSHD_SERVICE || :
+    echo "ExecStart=/bin/true" >> $SSHD_SERVICE || :
+    systemctl daemon-reload &> /dev/null || :
+fi
+
+%posttrans
+# See comment in pretrans
+SSHD_SERVICE="/lib/systemd/system/sshd.service"
+if grep -q "PLU temp fake" $SSHD_SERVICE; then
+    systemctl stop sshd.service &> /dev/null || :
+    rm -f $SSHD_SERVICE
+    systemctl daemon-reload &> /dev/null || :
+fi
+
 %pre server
 %if %{nologin}
 /usr/sbin/useradd -c "Privilege-separated SSH" -u %{sshd_uid} \
@@ -419,15 +446,15 @@ fi
 %endif
 
 %post server
-systemctl daemon-reload || :
+systemctl daemon-reload &> /dev/null || :
 
 %postun server
-systemctl daemon-reload || :
+systemctl daemon-reload &> /dev/null || :
 
 %preun server
 if [ $1 -eq 0 ] ; then
 # only stop when erasing, not on upgrade
-systemctl stop sshd.service || :
+systemctl stop sshd.service &> /dev/null || :
 fi
 
 %files
