@@ -1,6 +1,5 @@
 [Unit]
-Description=SSH Per-Connection Server
-After=syslog.target 
+Description=OpenSSH per-connection server daemon
 
 [Service]
 EnvironmentFile=-/etc/ssh/ssh-env.conf
@@ -9,5 +8,3 @@ ExecReload=/bin/kill -HUP $MAINPID
 StandardInput=socket
 StandardOutput=socket
 
-[Install]
-WantedBy=network.target
