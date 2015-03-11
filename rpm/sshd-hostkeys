@@ -11,6 +11,7 @@ make_key()
 }
 
 # make_key ssh_host_key rsa1
-make_key ssh_host_rsa_key rsa
+make_key ssh_host_rsa_key rsa&
 make_key ssh_host_dsa_key dsa
+wait
 
