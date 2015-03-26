@@ -1,5 +1,7 @@
 [Unit]
 Description=OpenSSH per-connection server daemon
+Wants=sshd-keys.service
+After=sshd-keys.service
 
 [Service]
 EnvironmentFile=-/etc/ssh/ssh-env.conf
