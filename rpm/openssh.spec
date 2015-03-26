@@ -354,9 +354,6 @@ install -D -m 0644 %{SOURCE7} %{buildroot}/%{_lib}/systemd/system/sshd-keys.serv
 mkdir -p %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants
 ln -s ../sshd.socket %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants/sshd.socket
 install -D -m 0755 %{SOURCE8} %{buildroot}/usr/sbin/sshd-hostkeys
-mkdir -p %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants
-ln -s ../sshd-keys.service %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants/sshd-keys.service
-
 
 %if ! %{no_gnome_askpass}
 install -s contrib/gnome-ssh-askpass $RPM_BUILD_ROOT%{_libexecdir}/openssh/gnome-ssh-askpass
@@ -395,20 +392,6 @@ if [ "$1" != 0 -a -r /var/run/sshd.pid ] ; then
 	touch /var/run/sshd.restart
 fi
 
-%triggerun server -- openssh-server < 2.5.0p1
-# Count the number of HostKey and HostDsaKey statements we have.
-gawk	'BEGIN {IGNORECASE=1}
-	 /^hostkey/ || /^hostdsakey/ {sawhostkey = sawhostkey + 1}
-	 END {exit sawhostkey}' /etc/ssh/sshd_config
-# And if we only found one, we know the client was relying on the old default
-# behavior, which loaded the the SSH2 DSA host key when HostDsaKey wasn't
-# specified.  Now that HostKey is used for both SSH1 and SSH2 keys, specifying
-# one nullifies the default, which would have loaded both.
-if [ $? -eq 1 ] ; then
-	echo HostKey /etc/ssh/ssh_host_rsa_key >> /etc/ssh/sshd_config
-	echo HostKey /etc/ssh/ssh_host_dsa_key >> /etc/ssh/sshd_config
-fi
-
 %pre
 # We have nasty problem with old openssh package
 # Old package tries to stop sshd.service during uninstallation
@@ -426,6 +409,12 @@ if [ ! -f $SSHD_SERVICE -a -d /usr/libexec/openssh ]; then
     echo "ExecStart=/bin/true" >> $SSHD_SERVICE || :
     systemctl daemon-reload &> /dev/null || :
 fi
+
+%post
+# In the past we had sshd-keygen masked to disable it, we changed this
+# so that it starts if keys are not present on bootup so one always
+# would have keys even if something destroys those.
+systemctl unmask sshd-keygen.service &> /dev/null || :
 
 %posttrans
 # See comment in pre
@@ -517,7 +506,6 @@ fi
 /%{_lib}/systemd/system/sshd@.service
 /%{_lib}/systemd/system/sshd-keys.service
 /%{_lib}/systemd/system/multi-user.target.wants/sshd.socket
-/%{_lib}/systemd/system/multi-user.target.wants/sshd-keys.service
 /usr/sbin/sshd-hostkeys
 
 %endif
