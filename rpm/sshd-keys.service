@@ -1,13 +1,16 @@
 [Unit]
 Description=Create sshd host keys
 DefaultDependencies=no
+ConditionPathExists=|!/etc/ssh/ssh_host_rsa_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key
 After=local-fs.target
 Conflicts=shutdown.target
 
 [Service]
 Type=oneshot
 ExecStart=/usr/sbin/sshd-hostkeys
-ExecStartPost=/bin/sync ; -/bin/ln -s /dev/null /etc/systemd/system/sshd-keys.service
+RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target

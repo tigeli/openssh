@@ -43,25 +43,13 @@ rc_reset
 
 case "$1" in
     start)
-        if ! test -f /etc/ssh/ssh_host_key ; then
-	    echo Generating /etc/ssh/ssh_host_key.
-	    ssh-keygen -t rsa1 -f /etc/ssh/ssh_host_key -N ''
-        fi
-        if ! test -f /etc/ssh/ssh_host_dsa_key ; then
-	    echo Generating /etc/ssh/ssh_host_dsa_key.
-	    
-	    ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N ''
-        fi
-        if ! test -f /etc/ssh/ssh_host_rsa_key ; then
-	    echo Generating /etc/ssh/ssh_host_rsa_key.
-	    
-	    ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ''
-        fi
+	# Generate any missing host keys
+	ssh-keygen -A
 	echo -n "Starting SSH daemon"
 	## Start daemon with startproc(8). If this fails
 	## the echo return value is set appropriate.
 
-	startproc -f -p $SSHD_PIDFILE /usr/sbin/sshd $SSHD_OPTS -o "PidFile=$SSHD_PIDFILE" 
+	startproc -f -p $SSHD_PIDFILE $SSHD_BIN $SSHD_OPTS -o "PidFile=$SSHD_PIDFILE" 
 
 	# Remember status and be verbose
 	rc_status -v
@@ -71,7 +59,7 @@ case "$1" in
 	## Stop daemon with killproc(8) and if this fails
 	## set echo the echo return value.
 
-	killproc -p $SSHD_PIDFILE -TERM /usr/sbin/sshd
+	killproc -p $SSHD_PIDFILE -TERM $SSHD_BIN
 
 	# Remember status and be verbose
 	rc_status -v
@@ -99,7 +87,7 @@ case "$1" in
 
 	echo -n "Reload service sshd"
 
-	killproc -p $SSHD_PIDFILE -HUP /usr/sbin/sshd
+	killproc -p $SSHD_PIDFILE -HUP $SSHD_BIN
 
         rc_status -v
 
@@ -115,7 +103,7 @@ case "$1" in
         # 2 - service dead, but /var/lock/ lock file exists
         # 3 - service not running
 
-	checkproc -p $SSHD_PIDFILE /usr/sbin/sshd
+	checkproc -p $SSHD_PIDFILE $SSHD_BIN
 
 	rc_status -v
 	;;

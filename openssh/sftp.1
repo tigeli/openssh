@@ -1,4 +1,4 @@
-.\" $OpenBSD: sftp.1,v 1.83 2010/02/08 10:50:20 markus Exp $
+.\" $OpenBSD: sftp.1,v 1.101 2015/01/30 11:43:14 djm Exp $
 .\"
 .\" Copyright (c) 2001 Damien Miller.  All rights reserved.
 .\"
@@ -22,7 +22,7 @@
 .\" (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
-.Dd $Mdocdate: February 8 2010 $
+.Dd $Mdocdate: January 30 2015 $
 .Dt SFTP 1
 .Os
 .Sh NAME
@@ -31,13 +31,14 @@
 .Sh SYNOPSIS
 .Nm sftp
 .Bk -words
-.Op Fl 1246Cpqrv
+.Op Fl 1246aCfpqrv
 .Op Fl B Ar buffer_size
 .Op Fl b Ar batchfile
 .Op Fl c Ar cipher
 .Op Fl D Ar sftp_server_path
 .Op Fl F Ar ssh_config
 .Op Fl i Ar identity_file
+.Op Fl l Ar limit
 .Op Fl o Ar ssh_option
 .Op Fl P Ar port
 .Op Fl R Ar num_requests
@@ -49,9 +50,11 @@
 .Oo Ar user Ns @ Oc Ns
 .Ar host Ns Op : Ns Ar
 .Nm sftp
-.Oo Ar user Ns @ Oc Ns
+.Oo
+.Ar user Ns @ Oc Ns
 .Ar host Ns Oo : Ns Ar dir Ns
-.Op Ar / Oc
+.Op Ar /
+.Oc
 .Nm sftp
 .Fl b Ar batchfile
 .Oo Ar user Ns @ Oc Ns Ar host
@@ -86,6 +89,10 @@ to obviate the need to enter a password at connection time (see
 and
 .Xr ssh-keygen 1
 for details).
+.Pp
+Since some usage formats use colon characters to delimit host names from path
+names, IPv6 addresses must be enclosed in square brackets to avoid ambiguity.
+.Pp
 The options are as follows:
 .Bl -tag -width Ds
 .It Fl 1
@@ -100,6 +107,11 @@ to use IPv4 addresses only.
 Forces
 .Nm
 to use IPv6 addresses only.
+.It Fl a
+Attempt to continue interrupted transfers rather than overwriting
+existing partial or complete copies of files.
+If the partial contents differ from those being transferred,
+then the resultant file is likely to be corrupt.
 .It Fl B Ar buffer_size
 Specify the size of the buffer that
 .Nm
@@ -122,10 +134,10 @@ may be used to indicate standard input.
 .Nm
 will abort if any of the following
 commands fail:
-.Ic get , put , rename , ln ,
+.Ic get , put , reget , reput, rename , ln ,
 .Ic rm , mkdir , chdir , ls ,
 .Ic lchdir , chmod , chown ,
-.Ic chgrp , lpwd , df ,
+.Ic chgrp , lpwd , df , symlink ,
 and
 .Ic lmkdir .
 Termination on error can be suppressed on a command by command basis by
@@ -152,11 +164,17 @@ per-user configuration file for
 .Xr ssh 1 .
 This option is directly passed to
 .Xr ssh 1 .
+.It Fl f
+Requests that files be flushed to disk immediately after transfer.
+When uploading files, this feature is only enabled if the server
+implements the "fsync@openssh.com" extension.
 .It Fl i Ar identity_file
 Selects the file from which the identity (private key) for public key
 authentication is read.
 This option is directly passed to
 .Xr ssh 1 .
+.It Fl l Ar limit
+Limits the used bandwidth, specified in Kbit/s.
 .It Fl o Ar ssh_option
 Can be used to pass options to
 .Nm ssh
@@ -175,6 +193,11 @@ For full details of the options listed below, and their possible values, see
 .It AddressFamily
 .It BatchMode
 .It BindAddress
+.It CanonicalDomains
+.It CanonicalizeFallbackLocal
+.It CanonicalizeHostname
+.It CanonicalizeMaxDots
+.It CanonicalizePermittedCNAMEs
 .It ChallengeResponseAuthentication
 .It CheckHostIP
 .It Cipher
@@ -185,18 +208,23 @@ For full details of the options listed below, and their possible values, see
 .It ConnectTimeout
 .It ControlMaster
 .It ControlPath
+.It ControlPersist
 .It GlobalKnownHostsFile
 .It GSSAPIAuthentication
 .It GSSAPIDelegateCredentials
 .It HashKnownHosts
 .It Host
 .It HostbasedAuthentication
+.It HostbasedKeyTypes
 .It HostKeyAlgorithms
 .It HostKeyAlias
 .It HostName
 .It IdentityFile
 .It IdentitiesOnly
+.It IPQoS
+.It KbdInteractiveAuthentication
 .It KbdInteractiveDevices
+.It KexAlgorithms
 .It LogLevel
 .It MACs
 .It NoHostAuthenticationForLocalhost
@@ -216,6 +244,7 @@ For full details of the options listed below, and their possible values, see
 .It ServerAliveCountMax
 .It StrictHostKeyChecking
 .It TCPKeepAlive
+.It UpdateHostKeys
 .It UsePrivilegedPort
 .It User
 .It UserKnownHostsFile
@@ -330,7 +359,7 @@ extension.
 Quit
 .Nm sftp .
 .It Xo Ic get
-.Op Fl Ppr
+.Op Fl afPpr
 .Ar remote-path
 .Op Ar local-path
 .Xc
@@ -349,6 +378,21 @@ If it does and
 is specified, then
 .Ar local-path
 must specify a directory.
+.Pp
+If the
+.Fl a
+flag is specified, then attempt to resume partial transfers of existing files.
+Note that resumption assumes that any partial copy of the local file matches
+the remote copy.
+If the remote file contents differ from the partial local copy then the
+resultant file is likely to be corrupt.
+.Pp
+If the
+.Fl f
+flag is specified, then
+.Xr fsync 2
+will be called after the file transfer has completed to flush the file
+to disk.
 .Pp
 If either the
 .Fl P
@@ -385,11 +429,19 @@ characters and may match multiple files.
 .It Ic lmkdir Ar path
 Create local directory specified by
 .Ar path .
-.It Ic ln Ar oldpath Ar newpath
-Create a symbolic link from
+.It Xo Ic ln
+.Op Fl s
+.Ar oldpath
+.Ar newpath
+.Xc
+Create a link from
 .Ar oldpath
 to
 .Ar newpath .
+If the
+.Fl s
+flag is specified the created link is a symbolic link, otherwise it is
+a hard link.
 .It Ic lpwd
 Print local working directory.
 .It Xo Ic ls
@@ -445,7 +497,7 @@ Create remote directory specified by
 .It Ic progress
 Toggle display of progress meter.
 .It Xo Ic put
-.Op Fl Ppr
+.Op Fl afPpr
 .Ar local-path
 .Op Ar remote-path
 .Xc
@@ -464,7 +516,24 @@ is specified, then
 .Ar remote-path
 must specify a directory.
 .Pp
-If ether the
+If the
+.Fl a
+flag is specified, then attempt to resume partial
+transfers of existing files.
+Note that resumption assumes that any partial copy of the remote file
+matches the local copy.
+If the local file contents differ from the remote local copy then
+the resultant file is likely to be corrupt.
+.Pp
+If the
+.Fl f
+flag is specified, then a request will be sent to the server to call
+.Xr fsync 2
+after the file has been transferred.
+Note that this is only supported by servers that implement
+the "fsync@openssh.com" extension.
+.Pp
+If either the
 .Fl P
 or
 .Fl p
@@ -482,6 +551,30 @@ Display remote working directory.
 .It Ic quit
 Quit
 .Nm sftp .
+.It Xo Ic reget
+.Op Fl Ppr
+.Ar remote-path
+.Op Ar local-path
+.Xc
+Resume download of
+.Ar remote-path .
+Equivalent to
+.Ic get
+with the
+.Fl a
+flag set.
+.It Xo Ic reput
+.Op Fl Ppr
+.Op Ar local-path
+.Ar remote-path
+.Xc
+Resume upload of
+.Op Ar local-path .
+Equivalent to
+.Ic put
+with the
+.Fl a
+flag set.
 .It Ic rename Ar oldpath Ar newpath
 Rename remote file from
 .Ar oldpath

@@ -64,8 +64,8 @@
 
 Summary: The OpenSSH implementation of SSH protocol versions 1 and 2
 Name: openssh
-Version: 5.6p1
-Release: 2%{?rescue_rel}
+Version: 7.1p1
+Release: 1%{?rescue_rel}
 URL: http://www.openssh.com/portable.html
 #Source0: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz
 #Source1: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz.asc
@@ -90,7 +90,7 @@ Source8: sshd-hostkeys
 #https://bugzilla.mindrot.org/show_bug.cgi?id=1663
 #Patch20: openssh-5.6p1-authorized-keys-command.patch
 
-Patch21: openssh-5.6p1-ldap.patch
+Patch21: openssh-6.7p1-ldap.patch
 
 #https://bugzilla.mindrot.org/show_bug.cgi?id=1668
 #Patch23: openssh-5.6p1-keygen.patch
@@ -459,7 +459,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc CREDITS ChangeLog INSTALL LICENCE OVERVIEW README* TODO WARNING*
+%doc CREDITS ChangeLog INSTALL LICENCE OVERVIEW README* TODO
 %attr(0755,root,root) %dir %{_sysconfdir}/ssh
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/ssh/moduli
 
