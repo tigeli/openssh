@@ -67,7 +67,6 @@
 #KerberosOrLocalPasswd yes
 #KerberosTicketCleanup yes
 #KerberosGetAFSToken no
-#KerberosUseKuserok yes
 
 # GSSAPI options
 #GSSAPIAuthentication no

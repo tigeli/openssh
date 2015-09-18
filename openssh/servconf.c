@@ -132,7 +132,6 @@ initialize_server_options(ServerOptions *options)
 	options->revoked_keys_file = NULL;
 	options->trusted_user_ca_keys = NULL;
 	options->authorized_principals_file = NULL;
-	options->use_kuserok = -1;
 }
 
 void
@@ -272,8 +271,6 @@ fill_default_server_options(ServerOptions *options)
 	if (use_privsep == -1)
 		use_privsep = 1;
 
-	if (options->use_kuserok == -1)
-		options->use_kuserok = 1;
 #ifndef HAVE_MMAP
 	if (use_privsep && options->compression == 1) {
 		error("This platform does not support both privilege "
@@ -295,7 +292,7 @@ typedef enum {
 	sPermitRootLogin, sLogFacility, sLogLevel,
 	sRhostsRSAAuthentication, sRSAAuthentication,
 	sKerberosAuthentication, sKerberosOrLocalPasswd, sKerberosTicketCleanup,
-	sKerberosGetAFSToken, sKerberosUseKuserok,
+	sKerberosGetAFSToken,
 	sKerberosTgtPassing, sChallengeResponseAuthentication,
 	sPasswordAuthentication, sKbdInteractiveAuthentication,
 	sListenAddress, sAddressFamily,
@@ -362,13 +359,11 @@ static struct {
 #else
 	{ "kerberosgetafstoken", sUnsupported, SSHCFG_GLOBAL },
 #endif
-	{ "kerberosusekuserok", sKerberosUseKuserok, SSHCFG_ALL },
 #else
 	{ "kerberosauthentication", sUnsupported, SSHCFG_ALL },
 	{ "kerberosorlocalpasswd", sUnsupported, SSHCFG_GLOBAL },
 	{ "kerberosticketcleanup", sUnsupported, SSHCFG_GLOBAL },
 	{ "kerberosgetafstoken", sUnsupported, SSHCFG_GLOBAL },
-	{ "kerberosusekuserok", sUnsupported, SSHCFG_ALL },
 #endif
 	{ "kerberostgtpassing", sUnsupported, SSHCFG_GLOBAL },
 	{ "afstokenpassing", sUnsupported, SSHCFG_GLOBAL },
@@ -1298,10 +1293,6 @@ process_server_config_line(ServerOptions *options, char *line,
 		*activep = value;
 		break;
 
-	case sKerberosUseKuserok:
-		intptr = &options->use_kuserok;
-		goto parse_flag;
-
 	case sPermitOpen:
 		arg = strdelim(&cp);
 		if (!arg || *arg == '\0')
@@ -1470,7 +1461,6 @@ copy_set_server_options(ServerOptions *dst, ServerOptions *src, int preauth)
 	M_CP_INTOPT(x11_use_localhost);
 	M_CP_INTOPT(max_sessions);
 	M_CP_INTOPT(max_authtries);
-	M_CP_INTOPT(use_kuserok);
 
 	M_CP_STROPT(banner);
 	if (preauth)
@@ -1690,7 +1680,6 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sUseDNS, o->use_dns);
 	dump_cfg_fmtint(sAllowTcpForwarding, o->allow_tcp_forwarding);
 	dump_cfg_fmtint(sUsePrivilegeSeparation, use_privsep);
-	dump_cfg_fmtint(sKerberosUseKuserok, o->use_kuserok);
 
 	/* string arguments */
 	dump_cfg_string(sPidFile, o->pid_file);

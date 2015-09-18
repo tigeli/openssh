@@ -57,7 +57,6 @@ extern ServerOptions options;
 #endif
 
 static krb5_context krb_context = NULL;
-extern int ssh_krb5_kuserok(krb5_context, krb5_principal, const char *);
 
 /* Initialise the krb5 library, for the stuff that GSSAPI won't do */
 
@@ -98,7 +97,7 @@ ssh_gssapi_krb5_userok(ssh_gssapi_client *client, char *name)
 		    krb5_get_err_text(krb_context, retval));
 		return 0;
 	}
-	if (ssh_krb5_kuserok(krb_context, princ, name)) {
+	if (krb5_kuserok(krb_context, princ, name)) {
 		retval = 1;
 		logit("Authorized to %s, krb5 principal %s (krb5_kuserok)",
 		    name, (char *)client->displayname.value);
