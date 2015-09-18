@@ -172,27 +172,12 @@ check_ip_options(int sock, char *ipaddr)
 	option_size = sizeof(options);
 	if (getsockopt(sock, ipproto, IP_OPTIONS, options,
 	    &option_size) >= 0 && option_size != 0) {
-		i = 0;
-		do {
-			switch (options[i]) {
-				case 0:
-				case 1:
-					++i;
-					break;
-				case 131:
-				case 137:
-				/* Fail, fatally, if we detect either loose or strict
-			 	 * source routing options. */
-					text[0] = '\0';
-					for (i = 0; i < option_size; i++)
-						snprintf(text + i*3, sizeof(text) - i*3,
-							" %2.2x", options[i]);
-					fatal("Connection from %.100s with IP options:%.800s",
-						ipaddr, text);
-				default:
-					i += options[i + 1];
-			}
-		} while (i < option_size);
+		text[0] = '\0';
+		for (i = 0; i < option_size; i++)
+			snprintf(text + i*3, sizeof(text) - i*3,
+			    " %2.2x", options[i]);
+		fatal("Connection from %.100s with IP options:%.800s",
+		    ipaddr, text);
 	}
 #endif /* IP_OPTIONS */
 }
