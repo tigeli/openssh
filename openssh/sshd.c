@@ -598,10 +598,6 @@ privsep_preauth_child(void)
 	/* Demote the private keys to public keys. */
 	demote_sensitive_data();
 
-	/* Open the syslog permanently so the chrooted process still
-	   can write to syslog. */
-	open_log();
-	
 	/* Change our root directory */
 	if (chroot(_PATH_PRIVSEP_CHROOT_DIR) == -1)
 		fatal("chroot(\"%s\"): %s", _PATH_PRIVSEP_CHROOT_DIR,

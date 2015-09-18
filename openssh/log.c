@@ -45,7 +45,6 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <errno.h>
-#include <fcntl.h>
 #if defined(HAVE_STRNVIS) && defined(HAVE_VIS_H)
 # include <vis.h>
 #endif
@@ -57,7 +56,6 @@ static LogLevel log_level = SYSLOG_LEVEL_INFO;
 static int log_on_stderr = 1;
 static int log_facility = LOG_AUTH;
 static char *argv0;
-int log_fd_keep = 0;
 
 extern char *__progname;
 
@@ -312,8 +310,6 @@ log_init(char *av0, LogLevel level, SyslogFacility facility, int on_stderr)
 		exit(1);
 	}
 
-	if (log_fd_keep != 0)
-		return;
 	/*
 	 * If an external library (eg libwrap) attempts to use syslog
 	 * immediately after reexec, syslog may be pointing to the wrong
@@ -396,33 +392,10 @@ do_log(LogLevel level, const char *fmt, va_list args)
 		syslog_r(pri, &sdata, "%.500s", fmtbuf);
 		closelog_r(&sdata);
 #else
-	    if (!log_fd_keep) {
 		openlog(argv0 ? argv0 : __progname, LOG_PID, log_facility);
-	    }
 		syslog(pri, "%.500s", fmtbuf);
-	    if (!log_fd_keep) {
 		closelog();
-	    }
 #endif
 	}
 	errno = saved_errno;
-}
-
-void
-open_log(void)
-{
-	int temp1, temp2;
-
-	temp1 = open("/dev/null", O_RDONLY);
-	openlog(argv0 ? argv0 : __progname, LOG_PID|LOG_NDELAY, log_facility);
-	temp2 = open("/dev/null", O_RDONLY);
-	if (temp1 + 2 ==  temp2)
-		log_fd_keep = temp1 + 1;
-	else 
-		log_fd_keep = -1;
-
-	if (temp1 != -1)
-		close(temp1);
-	if (temp2 != -1)
-		close(temp2);
 }

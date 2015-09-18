@@ -46,9 +46,6 @@ typedef enum {
 	SYSLOG_LEVEL_NOT_SET = -1
 }       LogLevel;
 
-
-extern int log_fd_keep;
-
 void     log_init(char *, LogLevel, SyslogFacility, int);
 
 SyslogFacility	log_facility_number(char *);
@@ -69,6 +66,4 @@ void     debug3(const char *, ...) __attribute__((format(printf, 1, 2)));
 
 void	 do_log(LogLevel, const char *, va_list);
 void	 cleanup_exit(int) __attribute__((noreturn));
-
-void     open_log(void);
 #endif
