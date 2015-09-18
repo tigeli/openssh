@@ -72,7 +72,6 @@ int change_passphrase = 0;
 int change_comment = 0;
 
 int quiet = 0;
-int overwrite = 0;
 
 int log_level = SYSLOG_LEVEL_INFO;
 
@@ -1799,7 +1798,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	while ((opt = getopt(argc, argv, "degiqopclBHLhvxXyF:b:f:t:D:I:P:m:N:n:"
+	while ((opt = getopt(argc, argv, "degiqpclBHLhvxXyF:b:f:t:D:I:P:m:N:n:"
 	    "O:C:r:g:R:T:G:M:S:s:a:V:W:z:")) != -1) {
 		switch (opt) {
 		case 'b':
@@ -1878,9 +1877,6 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			quiet = 1;
-			break;
-		case 'o':
-			overwrite = 1;
 			break;
 		case 'e':
 		case 'x':
@@ -2128,7 +2124,7 @@ main(int argc, char **argv)
 		}
 	}
 	/* If the file already exists, ask the user to confirm. */
-	if (!overwrite && stat(identity_file, &st) >= 0) {
+	if (stat(identity_file, &st) >= 0) {
 		char yesno[3];
 		printf("%s already exists.\n", identity_file);
 		printf("Overwrite (y/n)? ");

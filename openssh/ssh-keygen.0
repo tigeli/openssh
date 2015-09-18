@@ -4,7 +4,7 @@ NAME
      ssh-keygen - authentication key generation, management and conversion
 
 SYNOPSIS
-     ssh-keygen [-q] [-o] [-b bits] -t type [-N new_passphrase] [-C comment]
+     ssh-keygen [-q] [-b bits] -t type [-N new_passphrase] [-C comment]
                 [-f output_keyfile]
      ssh-keygen -p [-P old_passphrase] [-N new_passphrase] [-f keyfile]
      ssh-keygen -i [-m key_format] [-f input_keyfile]
@@ -231,8 +231,6 @@ DESCRIPTION
              the new passphrase.
 
      -q      Silence ssh-keygen.  Used by /etc/rc when creating a new key.
-
-     -o      Overwrite the key without prompting user.
 
      -R hostname
              Removes all keys belonging to hostname from a known_hosts file.
