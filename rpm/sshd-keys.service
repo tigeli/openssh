@@ -2,6 +2,8 @@
 Description=Create sshd host keys
 DefaultDependencies=no
 ConditionPathExists=|!/etc/ssh/ssh_host_rsa_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key
 PartOf=sshd.service sshd.socket
 After=local-fs.target
 Conflicts=shutdown.target
@@ -10,4 +12,3 @@ Conflicts=shutdown.target
 Type=oneshot
 ExecStart=/usr/sbin/sshd-hostkeys
 RemainAfterExit=yes
-

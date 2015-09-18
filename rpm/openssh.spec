@@ -64,16 +64,11 @@
 
 Summary: The OpenSSH implementation of SSH protocol versions 1 and 2
 Name: openssh
-Version: 5.6p1
-Release: 2%{?rescue_rel}
+Version: 7.1p1
+Release: 1%{?rescue_rel}
 URL: http://www.openssh.com/portable.html
-#Source0: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz
+Source0: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz
 #Source1: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz.asc
-# This package differs from the upstream OpenSSH tarball in that
-# the ACSS cipher is removed by running openssh-nukeacss.sh in
-# the unpacked source directory.
-Source0: %{name}-%{version}.tar.bz2
-Source1: openssh-nukeacss.sh
 Source2: sshd.pam
 Source4: sshd.service
 Source5: sshd@.service 
@@ -81,44 +76,7 @@ Source6: sshd.socket
 Source7: sshd-keys.service
 Source8: sshd-hostkeys
 
-#Patch0: openssh-5.6p1-redhat.patch
-
-##https://bugzilla.mindrot.org/show_bug.cgi?id=1640
-# Add patchlevel info to the sshd binary.
-#Patch5: openssh-5.2p1-vendor.patch
-
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1663
-#Patch20: openssh-5.6p1-authorized-keys-command.patch
-
-Patch21: openssh-5.6p1-ldap.patch
-
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1668
-#Patch23: openssh-5.6p1-keygen.patch
-
-#Patch24: openssh-4.3p1-fromto-remote.patch
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1636
-#Patch27: openssh-5.1p1-log-in-chroot.patch
-#Patch30: openssh-5.6p1-exit-deadlock.patch
-#Patch35: openssh-5.1p1-askpass-progress.patch
-#Patch38: openssh-4.3p2-askpass-grab-info.patch
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1644
-#Patch44: openssh-5.2p1-allow-ip-opts.patch
-#Patch49: openssh-4.3p2-gssapi-canohost.patch
-#Patch62: openssh-5.1p1-scp-manpage.patch
-
-#Patch65: openssh-5.6p1-fips.patch
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1701
-#Patch74: openssh-5.3p1-randclean.patch
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1780
-#Patch78: openssh-5.6p1-kuserok.patch
-
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1817
-#Patch80: openssh-5.6p1-biguid.patch
-#https://bugzilla.mindrot.org/show_bug.cgi?id=1842
-#Patch81: openssh-5.6p1-clientloop.patch
-
-#security fixes:
-#Patch101: openssh-5.6p1-CVE-2010-4478.patch
+Patch1: openssh-6.7p1-ldap.patch
 
 License: BSD
 Group: Applications/Internet
@@ -234,7 +192,7 @@ an X11 passphrase dialog for OpenSSH.
 %setup -q -n %{name}-%{version}/%{name}
 
 %if %{ldap}
-%patch21 -p1 -b .ldap
+%patch1 -p1 -b .ldap
 %endif
 
 autoreconf
@@ -450,7 +408,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc CREDITS ChangeLog INSTALL LICENCE OVERVIEW README* TODO WARNING*
+%doc CREDITS ChangeLog INSTALL LICENCE OVERVIEW README* TODO
 %attr(0755,root,root) %dir %{_sysconfdir}/ssh
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/ssh/moduli
 
