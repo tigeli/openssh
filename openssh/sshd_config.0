@@ -530,11 +530,6 @@ DESCRIPTION
              Defines the number of bits in the ephemeral protocol version 1
              server key.  The minimum value is 512, and the default is 1024.
 
-     ShowPatchLevel
-	     Specifies whether sshd will display the specific patch level of
-	     the binary in the server identification string.  The patch level
-	     is set at compile-time.  The default is M-bM-^@M-^\noM-bM-^@M-^].
-
      StrictModes
              Specifies whether sshd(8) should check file modes and ownership
              of the user's files and home directory before accepting login.

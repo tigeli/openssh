@@ -3978,12 +3978,6 @@ AC_ARG_WITH(lastlog,
 		fi
 	]
 )
-AC_ARG_ENABLE(vendor-patchlevel,
-  [  --enable-vendor-patchlevel=TAG  specify a vendor patch level],
-  [AC_DEFINE_UNQUOTED(SSH_VENDOR_PATCHLEVEL,[SSH_RELEASE "-" "$enableval"],[Define to your vendor patch level, if it has been modified from the upstream source release.])
-   SSH_VENDOR_PATCHLEVEL="$enableval"],
-  [AC_DEFINE(SSH_VENDOR_PATCHLEVEL,SSH_RELEASE,[Define to your vendor patch level, if it has been modified from the upstream source release.])
-   SSH_VENDOR_PATCHLEVEL=none])
 
 dnl lastlog, [uw]tmpx? detection
 dnl  NOTE: set the paths in the platform section to avoid the
@@ -4214,7 +4208,6 @@ echo "       IP address in \$DISPLAY hack: $DISPLAY_HACK_MSG"
 echo "           Translate v4 in v6 hack: $IPV4_IN6_HACK_MSG"
 echo "                  BSD Auth support: $BSD_AUTH_MSG"
 echo "              Random number source: $RAND_MSG"
-echo "                Vendor patch level: $SSH_VENDOR_PATCHLEVEL"
 if test ! -z "$USE_RAND_HELPER" ; then
 echo "     ssh-rand-helper collects from: $RAND_HELPER_MSG"
 fi
