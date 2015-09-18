@@ -31,7 +31,6 @@
 # Logging
 # obsoletes QuietMode and FascistLogging
 #SyslogFacility AUTH
-SyslogFacility AUTHPRIV
 #LogLevel INFO
 
 # Authentication:
@@ -61,11 +60,9 @@ SyslogFacility AUTHPRIV
 # To disable tunneled clear text passwords, change to no here!
 #PasswordAuthentication yes
 #PermitEmptyPasswords no
-PasswordAuthentication yes
 
 # Change to no to disable s/key passwords
 #ChallengeResponseAuthentication yes
-ChallengeResponseAuthentication no
 
 # Kerberos options
 #KerberosAuthentication no
@@ -76,9 +73,7 @@ ChallengeResponseAuthentication no
 
 # GSSAPI options
 #GSSAPIAuthentication no
-GSSAPIAuthentication yes
 #GSSAPICleanupCredentials yes
-GSSAPICleanupCredentials yes
 
 # Set this to 'yes' to enable PAM authentication, account processing, 
 # and session processing. If this is enabled, PAM authentication will 
@@ -90,19 +85,11 @@ GSSAPICleanupCredentials yes
 # PAM authentication, then enable this but set PasswordAuthentication
 # and ChallengeResponseAuthentication to 'no'.
 #UsePAM no
-UsePAM yes
-
-# Accept locale-related environment variables
-AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
-AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
-AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
-AcceptEnv XMODIFIERS
 
 #AllowAgentForwarding yes
 #AllowTcpForwarding yes
 #GatewayPorts no
 #X11Forwarding no
-X11Forwarding yes
 #X11DisplayOffset 10
 #X11UseLocalhost yes
 #PrintMotd yes
