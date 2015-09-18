@@ -100,7 +100,7 @@
 #ClientAliveCountMax 3
 #UseDNS yes
 #PidFile /var/run/sshd.pid
-#MaxStartups 10:30:100
+#MaxStartups 10
 #PermitTunnel no
 #ChrootDirectory none
 
