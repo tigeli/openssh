@@ -128,8 +128,6 @@ initialize_server_options(ServerOptions *options)
 	options->num_permitted_opens = -1;
 	options->adm_forced_command = NULL;
 	options->chroot_directory = NULL;
-	options->authorized_keys_command = NULL;
-	options->authorized_keys_command_runas = NULL;
 	options->zero_knowledge_password_authentication = -1;
 	options->revoked_keys_file = NULL;
 	options->trusted_user_ca_keys = NULL;
@@ -317,7 +315,6 @@ typedef enum {
 	sUsePrivilegeSeparation, sAllowAgentForwarding,
 	sZeroKnowledgePasswordAuthentication, sHostCertificate,
 	sRevokedKeys, sTrustedUserCAKeys, sAuthorizedPrincipalsFile,
-	sAuthorizedKeysCommand, sAuthorizedKeysCommandRunAs,
 	sDeprecated, sUnsupported
 } ServerOpCodes;
 
@@ -442,13 +439,6 @@ static struct {
 	{ "revokedkeys", sRevokedKeys, SSHCFG_ALL },
 	{ "trustedusercakeys", sTrustedUserCAKeys, SSHCFG_ALL },
 	{ "authorizedprincipalsfile", sAuthorizedPrincipalsFile, SSHCFG_ALL },
-#ifdef WITH_AUTHORIZED_KEYS_COMMAND
-	{ "authorizedkeyscommand", sAuthorizedKeysCommand, SSHCFG_ALL },
-	{ "authorizedkeyscommandrunas", sAuthorizedKeysCommandRunAs, SSHCFG_ALL },
-#else
-	{ "authorizedkeyscommand", sUnsupported, SSHCFG_ALL },
-	{ "authorizedkeyscommandrunas", sUnsupported, SSHCFG_ALL },
-#endif
 	{ NULL, sBadOption, 0 }
 };
 
@@ -1370,20 +1360,6 @@ process_server_config_line(ServerOptions *options, char *line,
 		charptr = &options->revoked_keys_file;
 		goto parse_filename;
 
-	case sAuthorizedKeysCommand:
-		len = strspn(cp, WHITESPACE);
-		if (*activep && options->authorized_keys_command == NULL)
-			options->authorized_keys_command = xstrdup(cp + len);
-		return 0;
-
-	case sAuthorizedKeysCommandRunAs:
-		charptr = &options->authorized_keys_command_runas;
-
-		arg = strdelim(&cp);
-		if (*activep && *charptr == NULL)
-			*charptr = xstrdup(arg);
-		break;
-
 	case sDeprecated:
 		logit("%s line %d: Deprecated option %s",
 		    filename, linenum, arg);
@@ -1477,8 +1453,6 @@ copy_set_server_options(ServerOptions *dst, ServerOptions *src, int preauth)
 	M_CP_INTOPT(gss_authentication);
 	M_CP_INTOPT(rsa_authentication);
 	M_CP_INTOPT(pubkey_authentication);
-	M_CP_STROPT(authorized_keys_command);
-	M_CP_STROPT(authorized_keys_command_runas);
 	M_CP_INTOPT(kerberos_authentication);
 	M_CP_INTOPT(hostbased_authentication);
 	M_CP_INTOPT(hostbased_uses_name_from_packet_only);
@@ -1732,8 +1706,6 @@ dump_config(ServerOptions *o)
 	dump_cfg_string(sRevokedKeys, o->revoked_keys_file);
 	dump_cfg_string(sAuthorizedPrincipalsFile,
 	    o->authorized_principals_file);
-	dump_cfg_string(sAuthorizedKeysCommand, o->authorized_keys_command);
-	dump_cfg_string(sAuthorizedKeysCommandRunAs, o->authorized_keys_command_runas);
 
 	/* string arguments requiring a lookup */
 	dump_cfg_string(sLogLevel, log_level_name(o->log_level));

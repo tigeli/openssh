@@ -27,7 +27,6 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 #include <fcntl.h>
 #include <pwd.h>
@@ -257,14 +256,26 @@ match_principals_file(char *file, struct passwd *pw, struct KeyCert *cert)
 
 /* return 1 if user allows given key */
 static int
-user_search_key_in_file(FILE *f, char *file, Key* key, struct passwd *pw)
+user_key_allowed2(struct passwd *pw, Key *key, char *file)
 {
 	char line[SSH_MAX_PUBKEY_BYTES];
 	const char *reason;
 	int found_key = 0;
+	FILE *f;
 	u_long linenum = 0;
 	Key *found;
 	char *fp;
+
+	/* Temporarily use the user's uid. */
+	temporarily_use_uid(pw);
+
+	debug("trying public key file %s", file);
+	f = auth_openkeyfile(file, pw, options.strict_modes);
+
+	if (!f) {
+		restore_uid();
+		return 0;
+	}
 
 	found_key = 0;
 	found = key_new(key_is_cert(key) ? KEY_UNSPEC : key->type);
@@ -358,6 +369,8 @@ user_search_key_in_file(FILE *f, char *file, Key* key, struct passwd *pw)
 			break;
 		}
 	}
+	restore_uid();
+	fclose(f);
 	key_free(found);
 	if (!found_key)
 		debug2("key not found");
@@ -419,190 +432,12 @@ user_cert_trusted_ca(struct passwd *pw, Key *key)
 	return ret;
 }
 
-/* return 1 if user allows given key */
-static int
-user_key_allowed2(struct passwd *pw, Key *key, char *file)
-{
-	FILE *f;
-	int found_key = 0;
-
-	/* Temporarily use the user's uid. */
-	temporarily_use_uid(pw);
-
-	debug("trying public key file %s", file);
-	f = auth_openkeyfile(file, pw, options.strict_modes);
-
- 	if (f) {
- 		found_key = user_search_key_in_file (f, file, key, pw);
-		fclose(f);
-	}
-
-	restore_uid();
-	return found_key;
-}
-
-#ifdef WITH_AUTHORIZED_KEYS_COMMAND
-
-#define WHITESPACE " \t\r\n"
-
-/* return 1 if user allows given key */
-static int
-user_key_via_command_allowed2(struct passwd *pw, Key *key)
-{
-	FILE *f;
-	int found_key = 0;
-	char *progname = NULL;
-	char *cp;
-	struct passwd *runas_pw;
-	struct stat st;
-	int childdescriptors[2], i;
-	pid_t pstat, pid, child;
-
-	if (options.authorized_keys_command == NULL || options.authorized_keys_command[0] != '/')
-		return -1;
-
-	/* get the run as identity from config */
-	runas_pw = (options.authorized_keys_command_runas == NULL)? pw
-	    : getpwnam (options.authorized_keys_command_runas);
-	if (!runas_pw) {
-		error("%s: getpwnam(\"%s\"): %s", __func__,
-		    options.authorized_keys_command_runas, strerror(errno));
-		return 0;
-	}
-
-	/* Temporarily use the specified uid. */
-	if (runas_pw->pw_uid != 0)
-		temporarily_use_uid(runas_pw);
-
-	progname = xstrdup(options.authorized_keys_command);
-
-	debug3("%s: checking program '%s'", __func__, progname);
-
-	if (stat (progname, &st) < 0) {
-		error("%s: stat(\"%s\"): %s", __func__,
-		    progname, strerror(errno));
-		goto go_away;
-	}
-
-	if (st.st_uid != 0 || (st.st_mode & 022) != 0) {
-		error("bad ownership or modes for AuthorizedKeysCommand \"%s\"",
-		    progname);
-		goto go_away;
-	}
-
-	if (!S_ISREG(st.st_mode)) {
-		error("AuthorizedKeysCommand \"%s\" is not a regular file",
-		    progname);
-		goto go_away;
-	}
-
-	/*
-	 * Descend the path, checking that each component is a
-	 * root-owned directory with strict permissions.
-	 */
-	do {
-		if ((cp = strrchr(progname, '/')) == NULL)
-			break;
-		else 
-			*cp = '\0';
-	
-		debug3("%s: checking component '%s'", __func__, (*progname == '\0' ? "/" : progname));
-
-		if (stat((*progname == '\0' ? "/" : progname), &st) != 0) {
-			error("%s: stat(\"%s\"): %s", __func__,
-			    progname, strerror(errno));
-			goto go_away;
-		}
-		if (st.st_uid != 0 || (st.st_mode & 022) != 0) {
-			error("bad ownership or modes for AuthorizedKeysCommand path component \"%s\"",
-			    progname);
-			goto go_away;
-		}
-		if (!S_ISDIR(st.st_mode)) {
-			error("AuthorizedKeysCommand path component \"%s\" is not a directory",
-			    progname);
-			goto go_away;
-		}
-	} while (1);
-
-	/* open the pipe and read the keys */
-	if (pipe(childdescriptors)) {
-		error("failed to pipe(2) for AuthorizedKeysCommand: %s",
-		    strerror(errno));
-		goto go_away;
-	}
-
-	child = fork();
-	if (child == -1) {
-		error("failed to fork(2) for AuthorizedKeysCommand: %s",
-		    strerror(errno));
-		goto go_away;
-	} else if (child == 0) {
-		/* we're in the child process here -- we should never return from this block. */
-		/* permanently drop privs in child process */
-		if (runas_pw->pw_uid != 0) {
-			restore_uid();
-			permanently_set_uid(runas_pw);
-	  	}
-
-		close(childdescriptors[0]);
-		/* put the write end of the pipe on stdout (FD 1) */
-		if (dup2(childdescriptors[1], 1) == -1) {
-			error("failed to dup2(2) from AuthorizedKeysCommand: %s",
-			    strerror(errno));
-			_exit(127);
-		}
-
-		debug3("about to execl() AuthorizedKeysCommand: \"%s\" \"%s\"", options.authorized_keys_command, pw->pw_name);
-		/* see session.c:child_close_fds() */
-		for (i = 3; i < 64; ++i) {
-			close(i);
-		}
-
-		execl(options.authorized_keys_command, options.authorized_keys_command, pw->pw_name, NULL);
-
-		/* if we got here, it didn't work */
-		error("failed to execl AuthorizedKeysCommand: %s", strerror(errno)); /* this won't work because we closed the fds above */
-		_exit(127);
-	}
-	
-	close(childdescriptors[1]);
-	f = fdopen(childdescriptors[0], "r");
-	if (!f) {
-		error("%s: could not buffer FDs from AuthorizedKeysCommand (\"%s\", \"r\"): %s", __func__,
-		    options.authorized_keys_command, strerror (errno));
-		goto go_away;
-	}
-
-	found_key = user_search_key_in_file (f, options.authorized_keys_command, key, pw);
-	fclose (f);
-	do {
-		pid = waitpid(child, &pstat, 0);
-	} while (pid == -1 && errno == EINTR);
-
-	/* what about the return value from the child process? */
-go_away:
-	if (progname)
-		xfree (progname);
-
-	if (runas_pw->pw_uid != 0)
-		restore_uid();
-	return found_key;
-}
-#endif
-
-/* check whether given key is in <AuthorizedKeysCommand or .ssh/authorized_keys* */
+/* check whether given key is in .ssh/authorized_keys* */
 int
 user_key_allowed(struct passwd *pw, Key *key)
 {
 	int success;
 	char *file;
-
-#ifdef WITH_AUTHORIZED_KEYS_COMMAND
-	success = user_key_via_command_allowed2(pw, key);
-	if (success > 0)
-		return success;
-#endif
 
 	if (auth_key_is_revoked(key))
 		return 0;

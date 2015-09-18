@@ -158,8 +158,6 @@ typedef struct {
 	char   *revoked_keys_file;
 	char   *trusted_user_ca_keys;
 	char   *authorized_principals_file;
-	char   *authorized_keys_command;
-	char   *authorized_keys_command_runas;
 }       ServerOptions;
 
 void	 initialize_server_options(ServerOptions *);
