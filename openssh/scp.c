@@ -551,11 +551,7 @@ toremote(char *targ, int argc, char **argv)
 				addargs(&alist, "-v");
 			addargs(&alist, "-x");
 			addargs(&alist, "-oClearAllForwardings yes");
-			if (isatty(fileno(stdin))) {
-				addargs(&alist, "-t");
-			} else {
-				addargs(&alist, "-n");
-			}
+			addargs(&alist, "-n");
 
 			*src++ = 0;
 			if (*src == 0)
