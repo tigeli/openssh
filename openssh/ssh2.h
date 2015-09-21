@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh2.h,v 1.13 2010/02/26 20:29:54 djm Exp $ */
+/* $OpenBSD: ssh2.h,v 1.15 2014/01/29 06:18:35 djm Exp $ */
 
 /*
  * Copyright (c) 2000 Markus Friedl.  All rights reserved.
@@ -98,6 +98,10 @@
 #define SSH2_MSG_KEX_DH_GEX_REPLY			33
 #define SSH2_MSG_KEX_DH_GEX_REQUEST			34
 
+/* ecdh */
+#define SSH2_MSG_KEX_ECDH_INIT				30
+#define SSH2_MSG_KEX_ECDH_REPLY				31
+
 /* user authentication: generic */
 
 #define SSH2_MSG_USERAUTH_REQUEST			50
@@ -111,12 +115,6 @@
 #define SSH2_MSG_USERAUTH_PASSWD_CHANGEREQ		60
 #define SSH2_MSG_USERAUTH_INFO_REQUEST			60
 #define SSH2_MSG_USERAUTH_INFO_RESPONSE			61
-#define SSH2_MSG_USERAUTH_JPAKE_CLIENT_STEP1		60
-#define SSH2_MSG_USERAUTH_JPAKE_SERVER_STEP1		61
-#define SSH2_MSG_USERAUTH_JPAKE_CLIENT_STEP2		62
-#define SSH2_MSG_USERAUTH_JPAKE_SERVER_STEP2		63
-#define SSH2_MSG_USERAUTH_JPAKE_CLIENT_CONFIRM		64
-#define SSH2_MSG_USERAUTH_JPAKE_SERVER_CONFIRM		65
 
 /* connection protocol: generic */
 

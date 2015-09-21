@@ -1,4 +1,3 @@
-.\"  -*- nroff -*-
 .\"
 .\" scp.1
 .\"
@@ -9,9 +8,9 @@
 .\"
 .\" Created: Sun May  7 00:14:37 1995 ylo
 .\"
-.\" $OpenBSD: scp.1,v 1.50 2010/02/08 10:50:20 markus Exp $
+.\" $OpenBSD: scp.1,v 1.67 2015/07/10 06:21:53 markus Exp $
 .\"
-.Dd $Mdocdate: February 8 2010 $
+.Dd $Mdocdate: July 10 2015 $
 .Dt SCP 1
 .Os
 .Sh NAME
@@ -20,7 +19,7 @@
 .Sh SYNOPSIS
 .Nm scp
 .Bk -words
-.Op Fl 1246BCpqrv
+.Op Fl 12346BCpqrv
 .Op Fl c Ar cipher
 .Op Fl F Ar ssh_config
 .Op Fl i Ar identity_file
@@ -31,14 +30,14 @@
 .Sm off
 .Oo
 .Op Ar user No @
-.Ar host1 No :
-.Oc Ns Ar file1
+.Ar host1 :
+.Oc Ar file1
 .Sm on
 .Ar ...
 .Sm off
 .Oo
 .Op Ar user No @
-.Ar host2 No :
+.Ar host2 :
 .Oc Ar file2
 .Sm on
 .Ek
@@ -50,8 +49,6 @@ It uses
 for data transfer, and uses the same authentication and provides the
 same security as
 .Xr ssh 1 .
-Unlike
-.Xr rcp 1 ,
 .Nm
 will ask for passwords or passphrases if they are needed for
 authentication.
@@ -66,14 +63,6 @@ treating file names containing
 as host specifiers.
 Copies between two remote hosts are also permitted.
 .Pp
-When copying a source file to a target file which already exists,
-.Nm 
-will replace the contents of the target file (keeping the inode).
-.Pp
-If the target file does not yet exist, an empty file with the target
-file name is created, then filled with the source file contents.
-No attempt is made at "near-atomic" transfer using temporary files.
-.Pp
 The options are as follows:
 .Bl -tag -width Ds
 .It Fl 1
@@ -84,6 +73,11 @@ to use protocol 1.
 Forces
 .Nm
 to use protocol 2.
+.It Fl 3
+Copies between two remote hosts are transferred through the local host.
+Without this option the data is copied directly between the two remote
+hosts.
+Note that this option disables the progress meter.
 .It Fl 4
 Forces
 .Nm
@@ -134,6 +128,11 @@ For full details of the options listed below, and their possible values, see
 .It AddressFamily
 .It BatchMode
 .It BindAddress
+.It CanonicalDomains
+.It CanonicalizeFallbackLocal
+.It CanonicalizeHostname
+.It CanonicalizeMaxDots
+.It CanonicalizePermittedCNAMEs
 .It ChallengeResponseAuthentication
 .It CheckHostIP
 .It Cipher
@@ -144,18 +143,23 @@ For full details of the options listed below, and their possible values, see
 .It ConnectTimeout
 .It ControlMaster
 .It ControlPath
+.It ControlPersist
 .It GlobalKnownHostsFile
 .It GSSAPIAuthentication
 .It GSSAPIDelegateCredentials
 .It HashKnownHosts
 .It Host
 .It HostbasedAuthentication
+.It HostbasedKeyTypes
 .It HostKeyAlgorithms
 .It HostKeyAlias
 .It HostName
 .It IdentityFile
 .It IdentitiesOnly
+.It IPQoS
+.It KbdInteractiveAuthentication
 .It KbdInteractiveDevices
+.It KexAlgorithms
 .It LogLevel
 .It MACs
 .It NoHostAuthenticationForLocalhost
@@ -166,6 +170,7 @@ For full details of the options listed below, and their possible values, see
 .It PreferredAuthentications
 .It Protocol
 .It ProxyCommand
+.It PubkeyAcceptedKeyTypes
 .It PubkeyAuthentication
 .It RekeyLimit
 .It RhostsRSAAuthentication
@@ -175,6 +180,7 @@ For full details of the options listed below, and their possible values, see
 .It ServerAliveCountMax
 .It StrictHostKeyChecking
 .It TCPKeepAlive
+.It UpdateHostKeys
 .It UsePrivilegedPort
 .It User
 .It UserKnownHostsFile
@@ -186,8 +192,7 @@ Note that this option is written with a capital
 .Sq P ,
 because
 .Fl p
-is already reserved for preserving the times and modes of the file in
-.Xr rcp 1 .
+is already reserved for preserving the times and modes of the file.
 .It Fl p
 Preserves modification times, access times, and modes from the
 original file.
@@ -217,10 +222,9 @@ to print debugging messages about their progress.
 This is helpful in
 debugging connection, authentication, and configuration problems.
 .El
-.Pp
+.Sh EXIT STATUS
 .Ex -std scp
 .Sh SEE ALSO
-.Xr rcp 1 ,
 .Xr sftp 1 ,
 .Xr ssh 1 ,
 .Xr ssh-add 1 ,
@@ -230,10 +234,9 @@ debugging connection, authentication, and configuration problems.
 .Xr sshd 8
 .Sh HISTORY
 .Nm
-is based on the
-.Xr rcp 1
-program in BSD source code from the Regents of the University of
-California.
+is based on the rcp program in
+.Bx
+source code from the Regents of the University of California.
 .Sh AUTHORS
-.An Timo Rinne Aq tri@iki.fi
-.An Tatu Ylonen Aq ylo@cs.hut.fi
+.An Timo Rinne Aq Mt tri@iki.fi
+.An Tatu Ylonen Aq Mt ylo@cs.hut.fi

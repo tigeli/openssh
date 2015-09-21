@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ssh-user-config, Copyright 2000-2008 Red Hat Inc.
+# ssh-user-config, Copyright 2000-2014 Red Hat Inc.
 #
 # This file is part of the Cygwin port of OpenSSH.
 #
@@ -39,85 +39,34 @@ pwdhome=
 with_passphrase=
 
 # ======================================================================
-# Routine: create_ssh1_identity
-#   optionally create ~/.ssh/identity[.pub]
+# Routine: create_identity
+#   optionally create identity of type argument in ~/.ssh
 #   optionally add result to ~/.ssh/authorized_keys
 # ======================================================================
-create_ssh1_identity() {
-  if [ ! -f "${pwdhome}/.ssh/identity" ]
+create_identity() {
+  local file="$1"
+  local type="$2"
+  local name="$3"
+  if [ ! -f "${pwdhome}/.ssh/${file}" ]
   then
-    if csih_request "Shall I create an SSH1 RSA identity file for you?"
+    if csih_request "Shall I create a ${name} identity file for you?"
     then
-      csih_inform "Generating ${pwdhome}/.ssh/identity"
+      csih_inform "Generating ${pwdhome}/.ssh/${file}"
       if [ "${with_passphrase}" = "yes" ]
       then
-        ssh-keygen -t rsa1 -N "${passphrase}" -f "${pwdhome}/.ssh/identity" > /dev/null
+        ssh-keygen -t "${type}" -N "${passphrase}" -f "${pwdhome}/.ssh/${file}" > /dev/null
       else
-        ssh-keygen -t rsa1 -f "${pwdhome}/.ssh/identity" > /dev/null
+        ssh-keygen -t "${type}" -f "${pwdhome}/.ssh/${file}" > /dev/null
       fi
       if csih_request "Do you want to use this identity to login to this machine?"
       then
         csih_inform "Adding to ${pwdhome}/.ssh/authorized_keys"
-        cat "${pwdhome}/.ssh/identity.pub" >> "${pwdhome}/.ssh/authorized_keys"
+        cat "${pwdhome}/.ssh/${file}.pub" >> "${pwdhome}/.ssh/authorized_keys"
       fi
     fi
   fi
 } # === End of create_ssh1_identity() === #
-readonly -f create_ssh1_identity
-
-# ======================================================================
-# Routine: create_ssh2_rsa_identity
-#   optionally create ~/.ssh/id_rsa[.pub]
-#   optionally add result to ~/.ssh/authorized_keys
-# ======================================================================
-create_ssh2_rsa_identity() {
-  if [ ! -f "${pwdhome}/.ssh/id_rsa" ]
-  then
-    if csih_request "Shall I create an SSH2 RSA identity file for you?"
-    then
-      csih_inform "Generating ${pwdhome}/.ssh/id_rsa"
-      if [ "${with_passphrase}" = "yes" ]
-      then
-        ssh-keygen -t rsa -N "${passphrase}" -f "${pwdhome}/.ssh/id_rsa" > /dev/null
-      else
-        ssh-keygen -t rsa -f "${pwdhome}/.ssh/id_rsa" > /dev/null
-      fi
-      if csih_request "Do you want to use this identity to login to this machine?"
-      then
-        csih_inform "Adding to ${pwdhome}/.ssh/authorized_keys"
-        cat "${pwdhome}/.ssh/id_rsa.pub" >> "${pwdhome}/.ssh/authorized_keys"
-      fi
-    fi
-  fi
-} # === End of create_ssh2_rsa_identity() === #
-readonly -f create_ssh2_rsa_identity
-
-# ======================================================================
-# Routine: create_ssh2_dsa_identity
-#   optionally create ~/.ssh/id_dsa[.pub]
-#   optionally add result to ~/.ssh/authorized_keys
-# ======================================================================
-create_ssh2_dsa_identity() {
-  if [ ! -f "${pwdhome}/.ssh/id_dsa" ]
-  then
-    if csih_request "Shall I create an SSH2 DSA identity file for you?"
-    then
-      csih_inform "Generating ${pwdhome}/.ssh/id_dsa"
-      if [ "${with_passphrase}" = "yes" ]
-      then
-        ssh-keygen -t dsa -N "${passphrase}" -f "${pwdhome}/.ssh/id_dsa" > /dev/null
-      else
-        ssh-keygen -t dsa -f "${pwdhome}/.ssh/id_dsa" > /dev/null
-      fi
-      if csih_request "Do you want to use this identity to login to this machine?"
-      then
-        csih_inform "Adding to ${pwdhome}/.ssh/authorized_keys"
-        cat "${pwdhome}/.ssh/id_dsa.pub" >> "${pwdhome}/.ssh/authorized_keys"
-      fi
-    fi
-  fi
-} # === End of create_ssh2_dsa_identity() === #
-readonly -f create_ssh2_dsa_identity
+readonly -f create_identity
 
 # ======================================================================
 # Routine: check_user_homedir
@@ -126,19 +75,18 @@ readonly -f create_ssh2_dsa_identity
 #   pwdhome
 # ======================================================================
 check_user_homedir() {
-  local uid=$(id -u)
-  pwdhome=$(awk -F: '{ if ( $3 == '${uid}' ) print $6; }' < ${SYSCONFDIR}/passwd)
+  pwdhome=$(getent passwd $UID | awk -F: '{ print $6; }')
   if [ "X${pwdhome}" = "X" ]
   then
     csih_error_multi \
-      "There is no home directory set for you in ${SYSCONFDIR}/passwd." \
+      "There is no home directory set for you in the account database." \
       'Setting $HOME is not sufficient!'
   fi
   
   if [ ! -d "${pwdhome}" ]
   then
     csih_error_multi \
-      "${pwdhome} is set in ${SYSCONFDIR}/passwd as your home directory" \
+      "${pwdhome} is set in the account database as your home directory" \
       'but it is not a valid directory. Cannot create user identity files.'
   fi
   
@@ -147,7 +95,7 @@ check_user_homedir() {
   if [ "X${pwdhome}" = "X/" ]
   then
     # But first raise a warning!
-    csih_warning "Your home directory in ${SYSCONFDIR}/passwd is set to root (/). This is not recommended!"
+    csih_warning "Your home directory in the account database is set to root (/). This is not recommended!"
     if csih_request "Would you like to proceed anyway?"
     then
       pwdhome=''
@@ -157,7 +105,7 @@ check_user_homedir() {
     fi
   fi
   
-  if [ -d "${pwdhome}" -a csih_is_nt -a -n "`chmod -c g-w,o-w "${pwdhome}"`" ]
+  if [ -d "${pwdhome}" -a -n "`chmod -c g-w,o-w "${pwdhome}"`" ]
   then
     echo
     csih_warning 'group and other have been revoked write permission to your home'
@@ -200,9 +148,10 @@ readonly -f check_user_dot_ssh_dir
 #   pwdhome   -- check_user_homedir()
 # ======================================================================
 fix_authorized_keys_perms() {
-  if [ csih_is_nt -a -e "${pwdhome}/.ssh/authorized_keys" ]
+  if [ -e "${pwdhome}/.ssh/authorized_keys" ]
   then
-    if ! setfacl -m "u::rw-,g::---,o::---" "${pwdhome}/.ssh/authorized_keys"
+    setfacl -b "${pwdhome}/.ssh/authorized_keys" 2>/dev/null || echo -n
+    if ! chmod u-x,g-wx,o-wx "${pwdhome}/.ssh/authorized_keys"
     then
       csih_warning "Setting correct permissions to ${pwdhome}/.ssh/authorized_keys"
       csih_warning "failed.  Please care for the correct permissions.  The minimum requirement"
@@ -273,10 +222,6 @@ do
     shift
     ;;
 
-  --privileged )
-    csih_FORCE_PRIVILEGED_USER=yes
-    ;;
-
   *)
     echo "usage: ${PROGNAME} [OPTION]..."
     echo
@@ -287,8 +232,6 @@ do
     echo "    --yes        -y        Answer all questions with \"yes\" automatically."
     echo "    --no         -n        Answer all questions with \"no\" automatically."
     echo "    --passphrase -p word   Use \"word\" as passphrase automatically."
-    echo "    --privileged           On Windows NT/2k/XP, assume privileged user"
-    echo "                           instead of LocalSystem for sshd service."
     echo
     exit 1
     ;;
@@ -300,20 +243,12 @@ done
 # Action!
 # ======================================================================
 
-# Check passwd file
-if [ ! -f ${SYSCONFDIR}/passwd ]
-then
-  csih_error_multi \
-    "${SYSCONFDIR}/passwd is nonexistant. Please generate an ${SYSCONFDIR}/passwd file" \
-    'first using mkpasswd. Check if it contains an entry for you and' \
-    'please care for the home directory in your entry as well.'
-fi
-
 check_user_homedir
 check_user_dot_ssh_dir
-create_ssh1_identity
-create_ssh2_rsa_identity
-create_ssh2_dsa_identity
+create_identity id_rsa rsa "SSH2 RSA"
+create_identity id_dsa dsa "SSH2 DSA"
+create_identity id_ecdsa ecdsa "SSH2 ECDSA"
+create_identity identity rsa1 "(deprecated) SSH1 RSA"
 fix_authorized_keys_perms
 
 echo

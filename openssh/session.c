@@ -1,4 +1,4 @@
-/* $OpenBSD: session.c,v 1.256 2010/06/25 07:20:04 djm Exp $ */
+/* $OpenBSD: session.c,v 1.278 2015/04/24 01:36:00 deraadt Exp $ */
 /*
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
  *                    All rights reserved
@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <netdb.h>
 #ifdef HAVE_PATHS_H
 #include <paths.h>
 #endif
@@ -59,6 +60,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "openbsd-compat/sys-queue.h"
 #include "xmalloc.h"
@@ -80,13 +82,14 @@
 #include "hostfile.h"
 #include "auth.h"
 #include "auth-options.h"
+#include "authfd.h"
 #include "pathnames.h"
 #include "log.h"
+#include "misc.h"
 #include "servconf.h"
 #include "sshlogin.h"
 #include "serverloop.h"
 #include "canohost.h"
-#include "misc.h"
 #include "session.h"
 #include "kex.h"
 #include "monitor_wrap.h"
@@ -94,6 +97,10 @@
 
 #if defined(KRB5) && defined(USE_AFS)
 #include <kafs.h>
+#endif
+
+#ifdef WITH_SELINUX
+#include <selinux/selinux.h>
 #endif
 
 #define IS_INTERNAL_SFTP(c) \
@@ -177,7 +184,6 @@ auth_input_request_forwarding(struct passwd * pw)
 {
 	Channel *nc;
 	int sock = -1;
-	struct sockaddr_un sunaddr;
 
 	if (auth_sock_name != NULL) {
 		error("authentication forwarding requested twice.");
@@ -195,7 +201,7 @@ auth_input_request_forwarding(struct passwd * pw)
 		packet_send_debug("Agent forwarding disabled: "
 		    "mkdtemp() failed: %.100s", strerror(errno));
 		restore_uid();
-		xfree(auth_sock_dir);
+		free(auth_sock_dir);
 		auth_sock_dir = NULL;
 		goto authsock_err;
 	}
@@ -203,33 +209,15 @@ auth_input_request_forwarding(struct passwd * pw)
 	xasprintf(&auth_sock_name, "%s/agent.%ld",
 	    auth_sock_dir, (long) getpid());
 
-	/* Create the socket. */
-	sock = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (sock < 0) {
-		error("socket: %.100s", strerror(errno));
-		restore_uid();
-		goto authsock_err;
-	}
-
-	/* Bind it to the name. */
-	memset(&sunaddr, 0, sizeof(sunaddr));
-	sunaddr.sun_family = AF_UNIX;
-	strlcpy(sunaddr.sun_path, auth_sock_name, sizeof(sunaddr.sun_path));
-
-	if (bind(sock, (struct sockaddr *)&sunaddr, sizeof(sunaddr)) < 0) {
-		error("bind: %.100s", strerror(errno));
-		restore_uid();
-		goto authsock_err;
-	}
+	/* Start a Unix listener on auth_sock_name. */
+	sock = unix_listener(auth_sock_name, SSH_LISTEN_BACKLOG, 0);
 
 	/* Restore the privileged uid. */
 	restore_uid();
 
-	/* Start listening on the socket. */
-	if (listen(sock, SSH_LISTEN_BACKLOG) < 0) {
-		error("listen: %.100s", strerror(errno));
+	/* Check for socket/bind/listen failure. */
+	if (sock < 0)
 		goto authsock_err;
-	}
 
 	/* Allocate a channel for the authentication agent socket. */
 	nc = channel_new("auth socket",
@@ -240,11 +228,10 @@ auth_input_request_forwarding(struct passwd * pw)
 	return 1;
 
  authsock_err:
-	if (auth_sock_name != NULL)
-		xfree(auth_sock_name);
+	free(auth_sock_name);
 	if (auth_sock_dir != NULL) {
 		rmdir(auth_sock_dir);
-		xfree(auth_sock_dir);
+		free(auth_sock_dir);
 	}
 	if (sock != -1)
 		close(sock);
@@ -269,7 +256,11 @@ do_authenticated(Authctxt *authctxt)
 	setproctitle("%s", authctxt->pw->pw_name);
 
 	/* setup the channel layer */
-	if (!no_port_forwarding_flag && options.allow_tcp_forwarding)
+	/* XXX - streamlocal? */
+	if (no_port_forwarding_flag ||
+	    (options.allow_tcp_forwarding & FORWARD_LOCAL) == 0)
+		channel_disable_adm_local_opens();
+	else
 		channel_permit_all_opens();
 
 	auth_debug_send();
@@ -357,8 +348,8 @@ do_authenticated1(Authctxt *authctxt)
 			packet_check_eom();
 			success = session_setup_x11fwd(s);
 			if (!success) {
-				xfree(s->auth_proto);
-				xfree(s->auth_data);
+				free(s->auth_proto);
+				free(s->auth_data);
 				s->auth_proto = NULL;
 				s->auth_data = NULL;
 			}
@@ -379,13 +370,13 @@ do_authenticated1(Authctxt *authctxt)
 				debug("Port forwarding not permitted for this authentication.");
 				break;
 			}
-			if (!options.allow_tcp_forwarding) {
+			if (!(options.allow_tcp_forwarding & FORWARD_REMOTE)) {
 				debug("Port forwarding not permitted.");
 				break;
 			}
 			debug("Received TCP/IP port forwarding request.");
 			if (channel_input_port_forward_request(s->pw->pw_uid == 0,
-			    options.gateway_ports) < 0) {
+			    &options.fwd_opts) < 0) {
 				debug("Port forwarding failed.");
 				break;
 			}
@@ -405,7 +396,7 @@ do_authenticated1(Authctxt *authctxt)
 				if (do_exec(s, command) != 0)
 					packet_disconnect(
 					    "command execution failed");
-				xfree(command);
+				free(command);
 			} else {
 				if (do_exec(s, NULL) != 0)
 					packet_disconnect(
@@ -434,7 +425,7 @@ do_authenticated1(Authctxt *authctxt)
 	}
 }
 
-#define USE_PIPES
+#define USE_PIPES 1
 /*
  * This is called to fork and execute a command when we have no tty.  This
  * will call do_child from the child, and server_loop from the parent after
@@ -585,7 +576,8 @@ do_exec_no_pty(Session *s, const char *command)
 
 	s->pid = pid;
 	/* Set interactive/non-interactive mode. */
-	packet_set_interactive(s->display != NULL);
+	packet_set_interactive(s->display != NULL,
+	    options.ip_qos_interactive, options.ip_qos_bulk);
 
 	/*
 	 * Clear loginmsg, since it's the child's responsibility to display
@@ -739,7 +731,8 @@ do_exec_pty(Session *s, const char *command)
 
 	/* Enter interactive session. */
 	s->ptymaster = ptymaster;
-	packet_set_interactive(1);
+	packet_set_interactive(1, 
+	    options.ip_qos_interactive, options.ip_qos_bulk);
 	if (compat20) {
 		session_set_fds(s, ptyfd, fdout, -1, 1, 1);
 	} else {
@@ -785,26 +778,49 @@ int
 do_exec(Session *s, const char *command)
 {
 	int ret;
+	const char *forced = NULL;
+	char session_type[1024], *tty = NULL;
 
 	if (options.adm_forced_command) {
 		original_command = command;
 		command = options.adm_forced_command;
-		if (IS_INTERNAL_SFTP(command)) {
-			s->is_subsystem = s->is_subsystem ?
-			    SUBSYSTEM_INT_SFTP : SUBSYSTEM_INT_SFTP_ERROR;
-		} else if (s->is_subsystem)
-			s->is_subsystem = SUBSYSTEM_EXT;
-		debug("Forced command (config) '%.900s'", command);
+		forced = "(config)";
 	} else if (forced_command) {
 		original_command = command;
 		command = forced_command;
+		forced = "(key-option)";
+	}
+	if (forced != NULL) {
 		if (IS_INTERNAL_SFTP(command)) {
 			s->is_subsystem = s->is_subsystem ?
 			    SUBSYSTEM_INT_SFTP : SUBSYSTEM_INT_SFTP_ERROR;
 		} else if (s->is_subsystem)
 			s->is_subsystem = SUBSYSTEM_EXT;
-		debug("Forced command (key option) '%.900s'", command);
+		snprintf(session_type, sizeof(session_type),
+		    "forced-command %s '%.900s'", forced, command);
+	} else if (s->is_subsystem) {
+		snprintf(session_type, sizeof(session_type),
+		    "subsystem '%.900s'", s->subsys);
+	} else if (command == NULL) {
+		snprintf(session_type, sizeof(session_type), "shell");
+	} else {
+		/* NB. we don't log unforced commands to preserve privacy */
+		snprintf(session_type, sizeof(session_type), "command");
 	}
+
+	if (s->ttyfd != -1) {
+		tty = s->tty;
+		if (strncmp(tty, "/dev/", 5) == 0)
+			tty += 5;
+	}
+
+	verbose("Starting session: %s%s%s for %s from %.200s port %d",
+	    session_type,
+	    tty == NULL ? "" : " on ",
+	    tty == NULL ? "" : tty,
+	    s->pw->pw_name,
+	    get_remote_ipaddr(),
+	    get_remote_port());
 
 #ifdef SSH_AUDIT_EVENTS
 	if (command != NULL)
@@ -973,7 +989,7 @@ child_set_env(char ***envp, u_int *envsizep, const char *name,
 			break;
 	if (env[i]) {
 		/* Reuse the slot. */
-		xfree(env[i]);
+		free(env[i]);
 	} else {
 		/* New variable.  Expand if necessary. */
 		envsize = *envsizep;
@@ -981,7 +997,7 @@ child_set_env(char ***envp, u_int *envsizep, const char *name,
 			if (envsize >= 1000)
 				fatal("child_set_env: too many env vars");
 			envsize += 50;
-			env = (*envp) = xrealloc(env, envsize, sizeof(char *));
+			env = (*envp) = xreallocarray(env, envsize, sizeof(char *));
 			*envsizep = envsize;
 		}
 		/* Need to set the NULL pointer at end of array beyond the new slot. */
@@ -1089,8 +1105,8 @@ read_etc_default_login(char ***env, u_int *envsize, uid_t uid)
 			umask((mode_t)mask);
 
 	for (i = 0; tmpenv[i] != NULL; i++)
-		xfree(tmpenv[i]);
-	xfree(tmpenv);
+		free(tmpenv[i]);
+	free(tmpenv);
 }
 #endif /* HAVE_ETC_DEFAULT_LOGIN */
 
@@ -1106,7 +1122,7 @@ copy_environment(char **source, char ***env, u_int *envsize)
 	for(i = 0; source[i] != NULL; i++) {
 		var_name = xstrdup(source[i]);
 		if ((var_val = strstr(var_name, "=")) == NULL) {
-			xfree(var_name);
+			free(var_name);
 			continue;
 		}
 		*var_val++ = '\0';
@@ -1114,7 +1130,7 @@ copy_environment(char **source, char ***env, u_int *envsize)
 		debug3("Copy environment: %s=%s", var_name, var_val);
 		child_set_env(env, envsize, var_name, var_val);
 
-		xfree(var_name);
+		free(var_name);
 	}
 }
 
@@ -1215,8 +1231,8 @@ do_setup_env(Session *s, const char *shell)
 				child_set_env(&env, &envsize, str, str + i + 1);
 			}
 			custom_environment = ce->next;
-			xfree(ce->s);
-			xfree(ce);
+			free(ce->s);
+			free(ce);
 		}
 	}
 
@@ -1228,7 +1244,7 @@ do_setup_env(Session *s, const char *shell)
 	laddr = get_local_ipaddr(packet_get_connection_in());
 	snprintf(buf, sizeof buf, "%.50s %d %.50s %d",
 	    get_remote_ipaddr(), get_remote_port(), laddr, get_local_port());
-	xfree(laddr);
+	free(laddr);
 	child_set_env(&env, &envsize, "SSH_CONNECTION", buf);
 
 	if (s->ttyfd != -1)
@@ -1326,7 +1342,8 @@ do_rc_files(Session *s, const char *shell)
 
 	/* ignore _PATH_SSH_USER_RC for subsystems and admin forced commands */
 	if (!s->is_subsystem && options.adm_forced_command == NULL &&
-	    !no_user_rc && stat(_PATH_SSH_USER_RC, &st) >= 0) {
+	    !no_user_rc && options.permit_user_rc &&
+	    stat(_PATH_SSH_USER_RC, &st) >= 0) {
 		snprintf(cmd, sizeof cmd, "%s -c '%s %s'",
 		    shell, _PATH_BSHELL, _PATH_SSH_USER_RC);
 		if (debug_flag)
@@ -1389,7 +1406,7 @@ do_nologin(struct passwd *pw)
 	struct stat sb;
 
 #ifdef HAVE_LOGIN_CAP
-	if (login_getcapbool(lc, "ignorenologin", 0) && pw->pw_uid)
+	if (login_getcapbool(lc, "ignorenologin", 0) || pw->pw_uid == 0)
 		return;
 	nl = login_getcapstr(lc, "nologin", def_nl, def_nl);
 #else
@@ -1399,7 +1416,7 @@ do_nologin(struct passwd *pw)
 #endif
 	if (stat(nl, &sb) == -1) {
 		if (nl != def_nl)
-			xfree(nl);
+			free(nl);
 		return;
 	}
 
@@ -1421,7 +1438,7 @@ static void
 safely_chroot(const char *path, uid_t uid)
 {
 	const char *cp;
-	char component[MAXPATHLEN];
+	char component[PATH_MAX];
 	struct stat st;
 
 	if (*path != '/')
@@ -1460,7 +1477,6 @@ safely_chroot(const char *path, uid_t uid)
 	if (chdir(path) == -1)
 		fatal("Unable to chdir to chroot path \"%s\": "
 		    "%s", path, strerror(errno));
-	open_log ();
 	if (chroot(path) == -1)
 		fatal("chroot(\"%s\"): %s", path, strerror(errno));
 	if (chdir("/") == -1)
@@ -1474,37 +1490,20 @@ void
 do_setusercontext(struct passwd *pw)
 {
 	char *chroot_path, *tmp;
-
-#ifdef WITH_SELINUX
-	/* Cache selinux status for later use */
-	(void)ssh_selinux_enabled();
+#ifdef USE_LIBIAF
+	int doing_chroot = 0;
 #endif
 
-#ifndef HAVE_CYGWIN
-	if (getuid() == 0 || geteuid() == 0)
-#endif /* HAVE_CYGWIN */
-	{
+	platform_setusercontext(pw);
+
+	if (platform_privileged_uidswap()) {
 #ifdef HAVE_LOGIN_CAP
-# ifdef __bsdi__
-		setpgid(0, 0);
-# endif
-# ifdef USE_PAM
-		if (options.use_pam) {
-			do_pam_setcred(use_privsep);
-		}
-# endif /* USE_PAM */
 		if (setusercontext(lc, pw, pw->pw_uid,
 		    (LOGIN_SETALL & ~(LOGIN_SETPATH|LOGIN_SETUSER))) < 0) {
 			perror("unable to set user context");
 			exit(1);
 		}
 #else
-# if defined(HAVE_GETLUID) && defined(HAVE_SETLUID)
-		/* Sets login uid for accounting */
-		if (getluid() == -1 && setluid(pw->pw_uid) == -1)
-			error("setluid: %s", strerror(errno));
-# endif /* defined(HAVE_GETLUID) && defined(HAVE_SETLUID) */
-
 		if (setlogin(pw->pw_name) < 0)
 			error("setlogin failed: %s", strerror(errno));
 		if (setgid(pw->pw_gid) < 0) {
@@ -1517,50 +1516,9 @@ do_setusercontext(struct passwd *pw)
 			exit(1);
 		}
 		endgrent();
-# ifdef USE_PAM
-		/*
-		 * PAM credentials may take the form of supplementary groups.
-		 * These will have been wiped by the above initgroups() call.
-		 * Reestablish them here.
-		 */
-		if (options.use_pam) {
-			do_pam_setcred(use_privsep);
-		}
-# endif /* USE_PAM */
-# if defined(WITH_IRIX_PROJECT) || defined(WITH_IRIX_JOBS) || defined(WITH_IRIX_ARRAY)
-		irix_setusercontext(pw);
-# endif /* defined(WITH_IRIX_PROJECT) || defined(WITH_IRIX_JOBS) || defined(WITH_IRIX_ARRAY) */
-# ifdef _AIX
-		aix_usrinfo(pw);
-# endif /* _AIX */
-# ifdef USE_LIBIAF
-		if (set_id(pw->pw_name) != 0) {
-			exit(1);
-		}
-# endif /* USE_LIBIAF */
 #endif
-#ifdef HAVE_SETPCRED
-		/*
-		 * If we have a chroot directory, we set all creds except real
-		 * uid which we will need for chroot.  If we don't have a
-		 * chroot directory, we don't override anything.
-		 */
-		{
-			char **creds = NULL, *chroot_creds[] =
-			    { "REAL_USER=root", NULL };
 
-			if (options.chroot_directory != NULL &&
-			    strcasecmp(options.chroot_directory, "none") != 0)
-				creds = chroot_creds;
-
-			if (setpcred(pw->pw_name, creds) == -1)
-				fatal("Failed to set process credentials");
-		}
-#endif /* HAVE_SETPCRED */
-
-#ifdef WITH_SELINUX
-		ssh_selinux_setup_exec_context(pw->pw_name);
-#endif
+		platform_setusercontext_post_groups(pw);
 
 		if (options.chroot_directory != NULL &&
 		    strcasecmp(options.chroot_directory, "none") != 0) {
@@ -1571,6 +1529,12 @@ do_setusercontext(struct passwd *pw)
 			safely_chroot(chroot_path, pw->pw_uid);
 			free(tmp);
 			free(chroot_path);
+			/* Make sure we don't attempt to chroot again */
+			free(options.chroot_directory);
+			options.chroot_directory = NULL;
+#ifdef USE_LIBIAF
+			doing_chroot = 1;
+#endif
 		}
 
 #ifdef HAVE_LOGIN_CAP
@@ -1578,10 +1542,30 @@ do_setusercontext(struct passwd *pw)
 			perror("unable to set user context (setuser)");
 			exit(1);
 		}
+		/* 
+		 * FreeBSD's setusercontext() will not apply the user's
+		 * own umask setting unless running with the user's UID.
+		 */
+		(void) setusercontext(lc, pw, pw->pw_uid, LOGIN_SETUMASK);
 #else
+# ifdef USE_LIBIAF
+/* In a chroot environment, the set_id() will always fail; typically 
+ * because of the lack of necessary authentication services and runtime
+ * such as ./usr/lib/libiaf.so, ./usr/lib/libpam.so.1, and ./etc/passwd
+ * We skip it in the internal sftp chroot case.
+ * We'll lose auditing and ACLs but permanently_set_uid will
+ * take care of the rest.
+ */
+	if ((doing_chroot == 0) && set_id(pw->pw_name) != 0) {
+		fatal("set_id(%s) Failed", pw->pw_name);
+	}
+# endif /* USE_LIBIAF */
 		/* Permanently switch to the desired uid. */
 		permanently_set_uid(pw);
 #endif
+	} else if (options.chroot_directory != NULL &&
+	    strcasecmp(options.chroot_directory, "none") != 0) {
+		fatal("server lacks privileges to chroot to ChrootDirectory");
 	}
 
 	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
@@ -1596,6 +1580,9 @@ do_pwchange(Session *s)
 	if (s->ttyfd != -1) {
 		fprintf(stderr,
 		    "You must change your password now and login again!\n");
+#ifdef WITH_SELINUX
+		setexeccon(NULL);
+#endif
 #ifdef PASSWD_NEEDS_USERNAME
 		execl(_PATH_PASSWD_PROG, "passwd", s->pw->pw_name,
 		    (char *)NULL);
@@ -1634,7 +1621,12 @@ launch_login(struct passwd *pw, const char *hostname)
 static void
 child_close_fds(void)
 {
-	int i;
+	extern int auth_sock;
+
+	if (auth_sock != -1) {
+		close(auth_sock);
+		auth_sock = -1;
+	}
 
 	if (packet_get_connection_in() == packet_get_connection_out())
 		close(packet_get_connection_in());
@@ -1661,9 +1653,7 @@ child_close_fds(void)
 	 * initgroups, because at least on Solaris 2.3 it leaves file
 	 * descriptors open.
 	 */
-	for (i = 3; i < 64; i++)
-		if (i != log_fd_keep)
-			close(i);
+	closefrom(STDERR_FILENO + 1);
 }
 
 /*
@@ -1902,7 +1892,7 @@ session_unused(int id)
 		fatal("%s: insane session id %d (max %d nalloc %d)",
 		    __func__, id, options.max_sessions, sessions_nalloc);
 	}
-	bzero(&sessions[id], sizeof(*sessions));
+	memset(&sessions[id], 0, sizeof(*sessions));
 	sessions[id].self = id;
 	sessions[id].used = 0;
 	sessions[id].chanid = -1;
@@ -1924,7 +1914,7 @@ session_new(void)
 			return NULL;
 		debug2("%s: allocate (allocated %d max %d)",
 		    __func__, sessions_nalloc, options.max_sessions);
-		tmp = xrealloc(sessions, sessions_nalloc + 1,
+		tmp = xreallocarray(sessions, sessions_nalloc + 1,
 		    sizeof(*sessions));
 		if (tmp == NULL) {
 			error("%s: cannot allocate %d sessions",
@@ -2080,7 +2070,7 @@ session_pty_req(Session *s)
 	u_int len;
 	int n_bytes;
 
-	if (no_pty_flag) {
+	if (no_pty_flag || !options.permit_tty) {
 		debug("Allocating a pty not permitted for this authentication.");
 		return 0;
 	}
@@ -2102,7 +2092,7 @@ session_pty_req(Session *s)
 	s->ypixel = packet_get_int();
 
 	if (strcmp(s->term, "") == 0) {
-		xfree(s->term);
+		free(s->term);
 		s->term = NULL;
 	}
 
@@ -2110,8 +2100,7 @@ session_pty_req(Session *s)
 	debug("Allocating pty.");
 	if (!PRIVSEP(pty_allocate(&s->ptyfd, &s->ttyfd, s->tty,
 	    sizeof(s->tty)))) {
-		if (s->term)
-			xfree(s->term);
+		free(s->term);
 		s->term = NULL;
 		s->ptyfd = -1;
 		s->ttyfd = -1;
@@ -2142,15 +2131,16 @@ session_subsystem_req(Session *s)
 	struct stat st;
 	u_int len;
 	int success = 0;
-	char *prog, *cmd, *subsys = packet_get_string(&len);
+	char *prog, *cmd;
 	u_int i;
 
+	s->subsys = packet_get_string(&len);
 	packet_check_eom();
-	logit("subsystem request for %.100s by user %s", subsys,
+	debug2("subsystem request for %.100s by user %s", s->subsys,
 	    s->pw->pw_name);
 
 	for (i = 0; i < options.num_subsystems; i++) {
-		if (strcmp(subsys, options.subsystem_name[i]) == 0) {
+		if (strcmp(s->subsys, options.subsystem_name[i]) == 0) {
 			prog = options.subsystem_command[i];
 			cmd = options.subsystem_args[i];
 			if (strcmp(INTERNAL_SFTP_NAME, prog) == 0) {
@@ -2169,10 +2159,9 @@ session_subsystem_req(Session *s)
 	}
 
 	if (!success)
-		logit("subsystem request for %.100s failed, subsystem not found",
-		    subsys);
+		logit("subsystem request for %.100s by user %s failed, "
+		    "subsystem not found", s->subsys, s->pw->pw_name);
 
-	xfree(subsys);
 	return success;
 }
 
@@ -2194,8 +2183,8 @@ session_x11_req(Session *s)
 
 	success = session_setup_x11fwd(s);
 	if (!success) {
-		xfree(s->auth_proto);
-		xfree(s->auth_data);
+		free(s->auth_proto);
+		free(s->auth_data);
 		s->auth_proto = NULL;
 		s->auth_data = NULL;
 	}
@@ -2217,7 +2206,7 @@ session_exec_req(Session *s)
 	char *command = packet_get_string(&len);
 	packet_check_eom();
 	success = do_exec(s, command) == 0;
-	xfree(command);
+	free(command);
 	return success;
 }
 
@@ -2228,7 +2217,7 @@ session_break_req(Session *s)
 	packet_get_int();	/* ignored */
 	packet_check_eom();
 
-	if (s->ttyfd == -1 || tcsendbreak(s->ttyfd, 0) < 0)
+	if (s->ptymaster == -1 || tcsendbreak(s->ptymaster, 0) < 0)
 		return 0;
 	return 1;
 }
@@ -2252,7 +2241,7 @@ session_env_req(Session *s)
 	for (i = 0; i < options.num_accept_env; i++) {
 		if (match_pattern(name, options.accept_env[i])) {
 			debug2("Setting env %d: %s=%s", s->num_env, name, val);
-			s->env = xrealloc(s->env, s->num_env + 1,
+			s->env = xreallocarray(s->env, s->num_env + 1,
 			    sizeof(*s->env));
 			s->env[s->num_env].name = name;
 			s->env[s->num_env].val = val;
@@ -2263,8 +2252,8 @@ session_env_req(Session *s)
 	debug2("Ignoring env request %s: disallowed name", name);
 
  fail:
-	xfree(name);
-	xfree(val);
+	free(name);
+	free(val);
 	return (0);
 }
 
@@ -2446,24 +2435,16 @@ session_close_single_x11(int id, void *arg)
 		if (s->x11_chanids[i] != id)
 			session_close_x11(s->x11_chanids[i]);
 	}
-	xfree(s->x11_chanids);
+	free(s->x11_chanids);
 	s->x11_chanids = NULL;
-	if (s->display) {
-		xfree(s->display);
-		s->display = NULL;
-	}
-	if (s->auth_proto) {
-		xfree(s->auth_proto);
-		s->auth_proto = NULL;
-	}
-	if (s->auth_data) {
-		xfree(s->auth_data);
-		s->auth_data = NULL;
-	}
-	if (s->auth_display) {
-		xfree(s->auth_display);
-		s->auth_display = NULL;
-	}
+	free(s->display);
+	s->display = NULL;
+	free(s->auth_proto);
+	s->auth_proto = NULL;
+	free(s->auth_data);
+	s->auth_data = NULL;
+	free(s->auth_display);
+	s->auth_display = NULL;
 }
 
 static void
@@ -2525,24 +2506,19 @@ session_close(Session *s)
 	debug("session_close: session %d pid %ld", s->self, (long)s->pid);
 	if (s->ttyfd != -1)
 		session_pty_cleanup(s);
-	if (s->term)
-		xfree(s->term);
-	if (s->display)
-		xfree(s->display);
-	if (s->x11_chanids)
-		xfree(s->x11_chanids);
-	if (s->auth_display)
-		xfree(s->auth_display);
-	if (s->auth_data)
-		xfree(s->auth_data);
-	if (s->auth_proto)
-		xfree(s->auth_proto);
+	free(s->term);
+	free(s->display);
+	free(s->x11_chanids);
+	free(s->auth_display);
+	free(s->auth_data);
+	free(s->auth_proto);
+	free(s->subsys);
 	if (s->env != NULL) {
 		for (i = 0; i < s->num_env; i++) {
-			xfree(s->env[i].name);
-			xfree(s->env[i].val);
+			free(s->env[i].name);
+			free(s->env[i].val);
 		}
-		xfree(s->env);
+		free(s->env);
 	}
 	session_proctitle(s);
 	session_unused(s->self);
@@ -2662,7 +2638,7 @@ session_setup_x11fwd(Session *s)
 {
 	struct stat st;
 	char display[512], auth_display[512];
-	char hostname[MAXHOSTNAMELEN];
+	char hostname[NI_MAXHOST];
 	u_int i;
 
 	if (no_x11_forwarding_flag) {
@@ -2673,7 +2649,7 @@ session_setup_x11fwd(Session *s)
 		debug("X11 forwarding disabled in server configuration file.");
 		return 0;
 	}
-	if (!options.xauth_location ||
+	if (options.xauth_location == NULL ||
 	    (stat(options.xauth_location, &st) == -1)) {
 		packet_send_debug("No xauth program; cannot forward with spoofing.");
 		return 0;
